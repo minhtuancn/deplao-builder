@@ -1,37 +1,18 @@
-name: Deploy to GitHub Pages
+name: Deploy to GitHub Pages (disabled)
 
+# Workflow này không dùng cho Electron app — tắt hoàn toàn
+# Chỉ có thể chạy thủ công nếu cần (không bao giờ trigger tự động)
 on:
-  push:
-    branches:
-      - main
-
-permissions:
-  contents: write
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Workflow này đã bị tắt, không dùng cho Electron app'
+        required: true
+        default: 'no'
 
 jobs:
-  build-and-deploy:
+  disabled:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          cname: ''
-
+      - name: ℹ️ Workflow disabled
+        run: echo "This workflow is disabled. Deplao is an Electron desktop app, not a GitHub Pages site."
