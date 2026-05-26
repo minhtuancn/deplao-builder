@@ -1,8 +1,8 @@
 import { API, CloseReason, Credentials, LoginQRCallbackEventType, ThreadType, Zalo } from "zca-js";
 import ConnectionManager from "./ConnectionManager";
 import Logger from "./Logger";
-import EventBroadcaster, { registerGroupCacheInvalidator } from "../services/EventBroadcaster";
-import DatabaseService from "../services/DatabaseService";
+import EventBroadcaster, { registerGroupCacheInvalidator } from "../services/event/EventBroadcaster";
+import DatabaseService from "../services/database/DatabaseService";
 import * as fs from "fs";
 import { imageSize } from "image-size";
 import { extractUserProfile } from "./profileUtils";

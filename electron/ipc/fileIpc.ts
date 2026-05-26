@@ -1,5 +1,5 @@
 import { ipcMain, dialog, shell, app } from 'electron';
-import FileStorageService from '../../src/services/FileStorageService';
+import FileStorageService from '../../src/services/file/FileStorageService';
 import Logger from '../../src/utils/Logger';
 import * as fs from 'fs';
 import * as path from 'path';

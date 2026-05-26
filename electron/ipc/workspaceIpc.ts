@@ -2,12 +2,12 @@ import { ipcMain, BrowserWindow } from 'electron';
 import * as http from 'http';
 import WorkspaceManager, { Workspace } from '../../src/utils/WorkspaceManager';
 import AppModeManager from '../../src/utils/AppModeManager';
-import DatabaseService from '../../src/services/DatabaseService';
-import FileStorageService from '../../src/services/FileStorageService';
-import HttpConnectionManager from '../../src/services/HttpConnectionManager';
-import HttpRelayService from '../../src/services/HttpRelayService';
+import DatabaseService from '../../src/services/database/DatabaseService';
+import FileStorageService from '../../src/services/file/FileStorageService';
+import HttpConnectionManager from '../../src/services/http/HttpConnectionManager';
+import HttpRelayService from '../../src/services/http/HttpRelayService';
 import ConnectionManager from '../../src/utils/ConnectionManager';
-import EventBroadcaster from '../../src/services/EventBroadcaster';
+import EventBroadcaster from '../../src/services/event/EventBroadcaster';
 import Logger from '../../src/utils/Logger';
 
 /**

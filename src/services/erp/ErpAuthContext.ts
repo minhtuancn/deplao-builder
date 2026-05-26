@@ -11,7 +11,7 @@
 
 import AppModeManager from '../../utils/AppModeManager';
 import WorkspaceManager from '../../utils/WorkspaceManager';
-import DatabaseService from '../DatabaseService';
+import DatabaseService from '../database/DatabaseService';
 import {
   ErpRole,
   erpCanWithOverrides,

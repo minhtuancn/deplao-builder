@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
-import DatabaseService from '../../src/services/DatabaseService';
-import WorkflowEngineService, { Workflow, WorkflowChannel } from '../../src/services/WorkflowEngineService';
+import DatabaseService from '../../src/services/database/DatabaseService';
+import WorkflowEngineService, { Workflow, WorkflowChannel } from '../../src/services/workflow/WorkflowEngineService';
 import { v4 as uuidv4 } from 'uuid';
 import Logger from '../../src/utils/Logger';
 

@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import AIAssistantService from '../../src/services/AIAssistantService';
+import AIAssistantService from '../../src/services/ai/AIAssistantService';
 import Logger from '../../src/utils/Logger';
 
 export function registerAIAssistantIpc(): void {

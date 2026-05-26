@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import ErpEmployeeService from '../../src/services/erp/ErpEmployeeService';
-import HttpRelayService from '../../src/services/HttpRelayService';
+import HttpRelayService from '../../src/services/http/HttpRelayService';
 import { withErpAuth, erpValidate } from './erpIpcMiddleware';
 
 const LEAVE_STATUS = ['approved', 'rejected'] as const;
@@ -142,7 +142,7 @@ export function registerErpHrmIpc(): void {
     let used = 0;
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const DatabaseService = require('../../src/services/DatabaseService').default;
+      const DatabaseService = require('../../src/services/database/DatabaseService').default;
       const row: any = DatabaseService.getInstance().queryOne(`SELECT COUNT(*) AS c FROM erp_employee_profiles`);
       used = Number(row?.c ?? 0);
     } catch {}

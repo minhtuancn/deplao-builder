@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron';
-import HttpClientService from '../../src/services/HttpClientService';
-import HttpConnectionManager from '../../src/services/HttpConnectionManager';
+import HttpClientService from '../../src/services/http/HttpClientService';
+import HttpConnectionManager from '../../src/services/http/HttpConnectionManager';
 import WorkspaceManager from '../../src/utils/WorkspaceManager';
-import DataSyncService from '../../src/services/DataSyncService';
-import DatabaseService from '../../src/services/DatabaseService';
+import DataSyncService from '../../src/services/employee/DataSyncService';
+import DatabaseService from '../../src/services/database/DatabaseService';
 import Logger from '../../src/utils/Logger';
 
 /** Get the HttpClientService for the currently active remote workspace. */

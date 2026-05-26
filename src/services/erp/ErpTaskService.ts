@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import DatabaseService from '../DatabaseService';
-import EventBroadcaster from '../EventBroadcaster';
-import FileStorageService from '../FileStorageService';
+import DatabaseService from '../database/DatabaseService';
+import EventBroadcaster from '../event/EventBroadcaster';
+import FileStorageService from '../file/FileStorageService';
 import Logger from '../../utils/Logger';
 import type {
   ErpProject, CreateProjectInput, UpdateProjectInput,

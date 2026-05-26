@@ -1,7 +1,7 @@
 import { ipcMain, app, dialog } from 'electron';
-import DatabaseService from '../../src/services/DatabaseService';
-import FileStorageService from '../../src/services/FileStorageService';
-import WorkflowEngineService from '../../src/services/WorkflowEngineService';
+import DatabaseService from '../../src/services/database/DatabaseService';
+import FileStorageService from '../../src/services/file/FileStorageService';
+import WorkflowEngineService from '../../src/services/workflow/WorkflowEngineService';
 import Logger from '../../src/utils/Logger';
 import * as path from 'path';
 import * as fs from 'fs';

@@ -1,5 +1,5 @@
-import DatabaseService from '../DatabaseService';
-import EventBroadcaster from '../EventBroadcaster';
+import DatabaseService from '../database/DatabaseService';
+import EventBroadcaster from '../event/EventBroadcaster';
 import Logger from '../../utils/Logger';
 import type {
   ErpDepartment, CreateDepartmentInput, ErpPosition,

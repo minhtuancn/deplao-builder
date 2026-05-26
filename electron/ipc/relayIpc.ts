@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import HttpRelayService from '../../src/services/HttpRelayService';
+import HttpRelayService from '../../src/services/http/HttpRelayService';
 import Logger from '../../src/utils/Logger';
 
 export function registerRelayIpc(): void {

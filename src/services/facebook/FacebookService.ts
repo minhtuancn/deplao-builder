@@ -16,8 +16,8 @@ import {
   changeThreadName, changeThreadEmoji, changeNickname
 } from './FacebookThreadManager';
 import { FacebookMQTTListener } from './FacebookMQTTListener';
-import EventBroadcaster from '../EventBroadcaster';
-import DatabaseService from '../DatabaseService';
+import EventBroadcaster from '../event/EventBroadcaster';
+import DatabaseService from '../database/DatabaseService';
 import Logger from '../../utils/Logger';
 
 export class FacebookService {

@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron';
-import EmployeeService from '../../src/services/EmployeeService';
-import DatabaseService from '../../src/services/DatabaseService';
+import EmployeeService from '../../src/services/employee/EmployeeService';
+import DatabaseService from '../../src/services/database/DatabaseService';
 import AppModeManager from '../../src/utils/AppModeManager';
-import HttpClientService from '../../src/services/HttpClientService';
-import HttpConnectionManager from '../../src/services/HttpConnectionManager';
-import HttpRelayService from '../../src/services/HttpRelayService';
+import HttpClientService from '../../src/services/http/HttpClientService';
+import HttpConnectionManager from '../../src/services/http/HttpConnectionManager';
+import HttpRelayService from '../../src/services/http/HttpRelayService';
 import WorkspaceManager from '../../src/utils/WorkspaceManager';
 import Logger from '../../src/utils/Logger';
 

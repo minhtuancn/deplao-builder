@@ -1,6 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import IntegrationRegistry from '../../src/services/integrations/IntegrationRegistry';
-import TunnelService from '../../src/services/TunnelService';
+import TunnelService from '../../src/services/tunnel/TunnelService';
 import Logger from '../../src/utils/Logger';
 
 export function registerIntegrationIpc(): void {

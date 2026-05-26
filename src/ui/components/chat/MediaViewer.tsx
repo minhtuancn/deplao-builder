@@ -30,10 +30,22 @@ export default function MediaViewer({ src, images, initialIndex = 0, alt = 'ản
     return [];
   }, [images, src, alt]);
 
-  const [currentIndex, setCurrentIndex] = useState(() =>
-    Math.min(Math.max(0, initialIndex), Math.max(0, imageList.length - 1))
-  );
-  const [isImageLoading, setIsImageLoading] = useState(true);
+  // Primary state: track the currently shown image by its display URL.
+  // This survives imageList reshuffling (async full gallery load) with zero visual artifacts —
+  // when the list grows, currentSrc stays the same and currentIndex just recomputes.
+  const [currentSrc, setCurrentSrc] = useState<string>(() => {
+    const idx = Math.min(Math.max(0, initialIndex), Math.max(0, imageList.length - 1));
+    const img = imageList[idx];
+    return img?.displaySrc || img?.src || '';
+  });
+
+  // Derived: find current image's position in the (possibly reshuffled) list.
+  const currentIndex = React.useMemo(() => {
+    if (!currentSrc || !imageList.length) return 0;
+    const idx = imageList.findIndex(img => (img.displaySrc || img.src) === currentSrc);
+    return idx >= 0 ? idx : 0;
+  }, [currentSrc, imageList]);
+  const [isImageLoading, setIsImageLoading] = useState(false);
   const [mainImageError, setMainImageError] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -42,9 +54,18 @@ export default function MediaViewer({ src, images, initialIndex = 0, alt = 'ản
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  // Track pointer drag to avoid closing dialog after panning
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
+  const hasDragged = useRef(false);
+  // Skip resetTransform on the very first render — centerOnInit handles it.
+  // Calling resetTransform(0) on mount fights against centerOnInit and causes a visible jump.
+  const isMountedRef = useRef(false);
+  // Guard thumbnail scroll — only scroll when a genuinely different image becomes active,
+  // not when the same image just shifts to a new index because the full list loaded.
+  const lastScrolledSrcRef = useRef('');
 
   const current = imageList[currentIndex];
-  const displaySrc = current?.displaySrc || current?.src || '';
+  const displaySrc = currentSrc || current?.src || ''; // currentSrc IS the displaySrc (local > remote)
   const viewSrc = current?.src || '';
   const currentAlt = current?.alt || alt;
   const localPath = current?.localPath || '';
@@ -52,47 +73,62 @@ export default function MediaViewer({ src, images, initialIndex = 0, alt = 'ản
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
-  // Keep selected image aligned with new props when parent reopens/refreshes gallery.
-  useEffect(() => {
-    setCurrentIndex(Math.min(Math.max(0, initialIndex), Math.max(0, imageList.length - 1)));
-  }, [initialIndex, imageList.length]);
+  // No imageList-sync effect needed: currentIndex is derived from currentSrc via useMemo.
+  // When the full gallery loads and imageList grows, currentSrc stays the same →
+  // currentIndex recomputes automatically → zero re-renders, zero visual artifacts.
 
-  // Show loading state every time current image source changes.
-  // Also add safety mechanisms:
-  //   1. Check if image is already cached/complete after a short delay
-  //   2. Absolute timeout fallback (15s) to never spin forever
-  //   3. Skip loading for empty src
+  // Show loading spinner only when truly needed:
+  //   - Start with no spinner (false), then after a short delay check if image has loaded.
+  //   - If image is already cached/complete → never show spinner (no flash).
+  //   - If image is still loading after the delay → show spinner.
+  //   - Absolute timeout fallback (15s) to never spin forever.
   useEffect(() => {
     if (!displaySrc) {
       setIsImageLoading(false);
       setMainImageError(true);
       return;
     }
-    setIsImageLoading(true);
+    setIsImageLoading(false); // Reset — don't show spinner immediately
     setMainImageError(false);
 
-    // After a tick, check if browser already has this image decoded (cache hit).
-    // This covers the case where React re-sets the same src and onLoad doesn't re-fire.
-    const cacheCheck = setTimeout(() => {
+    // Immediately check if the image is already loaded (cache hit).
+    // img.src might not match yet on the first render tick, so we wait one frame.
+    let cancelled = false;
+    const frameCheck = requestAnimationFrame(() => {
+      if (cancelled) return;
       const img = imgRef.current;
       if (img && img.complete && img.naturalWidth > 0) {
-        setIsImageLoading(false);
+        // Already loaded — nothing to do
+        return;
       }
-    }, 150);
+      // Image is not yet loaded → show spinner after a 80 ms grace period
+      // (avoids flash for very-fast network loads)
+      const spinnerTimer = setTimeout(() => {
+        if (cancelled) return;
+        const img2 = imgRef.current;
+        if (img2 && img2.complete && img2.naturalWidth > 0) return;
+        setIsImageLoading(true);
+      }, 80);
 
-    // Absolute safety timeout — never spin longer than 15 seconds.
-    const safetyTimeout = setTimeout(() => {
-      setIsImageLoading(prev => {
-        if (prev) {
-          console.warn('[MediaViewer] Loading timeout for:', displaySrc.substring(0, 80));
-        }
-        return false;
-      });
-    }, 15_000);
+      // Absolute safety timeout — never spin longer than 15 seconds.
+      const safetyTimer = setTimeout(() => {
+        if (cancelled) return;
+        setIsImageLoading(prev => {
+          if (prev) console.warn('[MediaViewer] Loading timeout for:', displaySrc.substring(0, 80));
+          return false;
+        });
+      }, 15_000);
+
+      // Store timers so cleanup can reach them
+      (frameCheck as any)._spinnerTimer = spinnerTimer;
+      (frameCheck as any)._safetyTimer = safetyTimer;
+    });
 
     return () => {
-      clearTimeout(cacheCheck);
-      clearTimeout(safetyTimeout);
+      cancelled = true;
+      cancelAnimationFrame(frameCheck);
+      clearTimeout((frameCheck as any)._spinnerTimer);
+      clearTimeout((frameCheck as any)._safetyTimer);
     };
   }, [displaySrc]);
 
@@ -112,29 +148,43 @@ export default function MediaViewer({ src, images, initialIndex = 0, alt = 'ản
     });
   }, [currentIndex, imageList]);
 
-  // Reset zoom+pan when switching images
+  // Reset zoom+pan when switching to a DIFFERENT image.
+  // Use displaySrc (not currentIndex) as dep: when the full DB list loads, the index shifts
+  // for the same image — displaySrc stays the same → no reset → no flash.
+  // Only actually reset when the user navigates to a genuinely different image.
   useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
     if (transformRef.current) {
       transformRef.current.resetTransform(0);
       setZoomLevel(1);
     }
     setContextMenu(null);
-  }, [currentIndex]);
+  }, [displaySrc]);
 
-  // Scroll thumbnail into view
+  // Scroll thumbnail into view only when a genuinely different image becomes active.
+  // Do NOT scroll when the same image just shifts to a new index (full list loaded from DB).
   useEffect(() => {
+    if (lastScrolledSrcRef.current === displaySrc) return; // Same image — suppress scroll
+    lastScrolledSrcRef.current = displaySrc;
     if (!thumbsRef.current) return;
     const thumb = thumbsRef.current.children[currentIndex] as HTMLElement;
     if (thumb) thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [currentIndex]);
+  }, [currentIndex, displaySrc]);
 
   const goNext = useCallback(() => {
-    if (imageList.length > 1) setCurrentIndex(i => (i + 1) % imageList.length);
-  }, [imageList.length]);
+    if (imageList.length <= 1) return;
+    const next = imageList[(currentIndex + 1) % imageList.length];
+    setCurrentSrc(next?.displaySrc || next?.src || '');
+  }, [imageList, currentIndex]);
 
   const goPrev = useCallback(() => {
-    if (imageList.length > 1) setCurrentIndex(i => (i - 1 + imageList.length) % imageList.length);
-  }, [imageList.length]);
+    if (imageList.length <= 1) return;
+    const prev = imageList[(currentIndex - 1 + imageList.length) % imageList.length];
+    setCurrentSrc(prev?.displaySrc || prev?.src || '');
+  }, [imageList, currentIndex]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') { onClose(); return; }
@@ -322,7 +372,27 @@ export default function MediaViewer({ src, images, initialIndex = 0, alt = 'ản
         {/* Image container with react-zoom-pan-pinch */}
         <div
           className="flex-1 flex items-center justify-center overflow-hidden relative"
+          onPointerDown={e => {
+            pointerDownPos.current = { x: e.clientX, y: e.clientY };
+            hasDragged.current = false;
+          }}
+          onPointerMove={e => {
+            if (pointerDownPos.current) {
+              const dx = e.clientX - pointerDownPos.current.x;
+              const dy = e.clientY - pointerDownPos.current.y;
+              if (Math.sqrt(dx * dx + dy * dy) > 5) {
+                hasDragged.current = true;
+              }
+            }
+          }}
           onClick={e => {
+            // If the pointer moved (drag/pan), don't treat it as a close-click
+            if (hasDragged.current) {
+              hasDragged.current = false;
+              pointerDownPos.current = null;
+              return;
+            }
+            pointerDownPos.current = null;
             const target = e.target as HTMLElement;
             if (!target.closest('img')) onClose();
           }}
@@ -451,7 +521,10 @@ export default function MediaViewer({ src, images, initialIndex = 0, alt = 'ản
             {imageList.map((img, idx) => (
               <button
                 key={idx}
-                onClick={() => setCurrentIndex(idx)}
+                onClick={() => {
+                  const img = imageList[idx];
+                  setCurrentSrc(img?.displaySrc || img?.src || '');
+                }}
                 className={`w-full aspect-square rounded overflow-hidden flex-shrink-0 border-2 transition-all ${
                   idx === currentIndex
                     ? 'border-blue-400 opacity-100 scale-100'

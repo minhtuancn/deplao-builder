@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import DatabaseService from '../DatabaseService';
-import EventBroadcaster from '../EventBroadcaster';
+import DatabaseService from '../database/DatabaseService';
+import EventBroadcaster from '../event/EventBroadcaster';
 import Logger from '../../utils/Logger';
 import type {
   ErpCalendarEvent, CreateCalendarEventInput, ConflictResult,

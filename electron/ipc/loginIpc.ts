@@ -1,9 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron';
-import LoginService from '../../src/services/LoginService';
-import DatabaseService from '../../src/services/DatabaseService';
+import LoginService from '../../src/services/login/LoginService';
+import DatabaseService from '../../src/services/database/DatabaseService';
 import ConnectionManager from '../../src/utils/ConnectionManager';
 import FacebookConnectionManager from '../../src/utils/FacebookConnectionManager';
-import EventBroadcaster from '../../src/services/EventBroadcaster';
+import EventBroadcaster from '../../src/services/event/EventBroadcaster';
 import Logger from '../../src/utils/Logger';
 import ZaloLoginHelper from '../../src/utils/ZaloLoginHelper';
 function postLoginSetup(_zaloId: string, _mainWindow: BrowserWindow | null, _name?: string, _phone?: string) {

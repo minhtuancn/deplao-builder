@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, protocol, 
 import * as path from 'path';
 import * as fs from 'fs';
 import { autoUpdater } from 'electron-updater';
-import DatabaseService from '../src/services/DatabaseService';
+import DatabaseService from '../src/services/database/DatabaseService';
 import { registerLoginIpc } from './ipc/loginIpc';
 import { registerZaloIpc } from './ipc/zaloIpc';
 import { registerDatabaseIpc } from './ipc/databaseIpc';
@@ -23,12 +23,12 @@ import { registerErpNoteIpc } from './ipc/erpNoteIpc';
 import { registerErpNotificationIpc } from './ipc/erpNotificationIpc';
 import { registerErpHrmIpc } from './ipc/erpHrmIpc';
 import WorkspaceManager from '../src/utils/WorkspaceManager';
-import HttpConnectionManager from '../src/services/HttpConnectionManager';
-import WorkflowEngineService from '../src/services/WorkflowEngineService';
+import HttpConnectionManager from '../src/services/http/HttpConnectionManager';
+import WorkflowEngineService from '../src/services/workflow/WorkflowEngineService';
 import IntegrationRegistry from '../src/services/integrations/IntegrationRegistry';
-import EventBroadcaster from '../src/services/EventBroadcaster';
-import CRMQueueService from '../src/services/CRMQueueService';
-import FileStorageService from '../src/services/FileStorageService';
+import EventBroadcaster from '../src/services/event/EventBroadcaster';
+import CRMQueueService from '../src/services/crm/CRMQueueService';
+import FileStorageService from '../src/services/file/FileStorageService';
 import { SHOW_DEV_TOOLS, IS_DEV_BUILD } from '../src/configs/BuildConfig';
 
 const isDev = IS_DEV_BUILD;
@@ -613,7 +613,7 @@ app.whenReady().then(async () => {
       const activeWs = wsMgr.getActiveWorkspace();
       if (activeWs && activeWs.type === 'local' && activeWs.relayAutoStart) {
         const port = activeWs.relayPort || 9900;
-        const HttpRelayService = require('../src/services/HttpRelayService').default;
+        const HttpRelayService = require('../src/services/http/HttpRelayService').default;
         HttpRelayService.getInstance().start(port).then((res: any) => {
           if (res?.success) {
             console.log(`[main] Relay server auto-started on port ${res.port}`);

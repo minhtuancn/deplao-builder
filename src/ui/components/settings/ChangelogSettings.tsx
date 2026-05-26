@@ -14,6 +14,33 @@ interface VersionEntry {
 // ─── Changelog data — thêm entry mới vào ĐẦU mảng khi có bản cập nhật ────────
 const CHANGELOG: VersionEntry[] = [
   {
+    version: '26.4.1',
+    date: '05/2026',
+    type: 'patch',
+    highlights: [
+      '🚀 Chiến dịch gửi tin hàng loạt nâng cấp: hỗ trợ soạn ảnh, gửi nhiều tin trong một lần và random nội dung',
+      '🐛 Sửa một số lỗi liên quan đến chat và xem ảnh',
+    ],
+    changes: [
+      {
+        category: 'new',
+        items: [
+          'Chiến dịch gửi tin hàng loạt hỗ trợ soạn thêm tin nhắn kèm ảnh',
+          'Gửi nhiều tin nhắn trong một lượt chiến dịch',
+          'Tính năng random nội dung giúp tin nhắn tự nhiên hơn, giảm trùng lặp',
+        ],
+      },
+      {
+        category: 'fixed',
+        items: [
+          'Sửa lỗi thanh gợi ý sticker khi chat — cuộn chuột trên thanh sticker giờ trượt ngang tự nhiên',
+          'Sửa lỗi hiển thị ảnh trong tin nhắn — giảm hiện tượng giật/nháy khi tải ảnh',
+          'Sửa lỗi trình xem ảnh — không còn nháy khi mở, kéo ảnh để zoom không còn tự đóng hộp thoại',
+        ],
+      },
+    ],
+  },
+  {
     version: '26.4.0',
     date: '04/2026',
     type: 'major',

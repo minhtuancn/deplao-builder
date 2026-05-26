@@ -1,5 +1,5 @@
-import DatabaseService from '../DatabaseService';
-import EventBroadcaster from '../EventBroadcaster';
+import DatabaseService from '../database/DatabaseService';
+import EventBroadcaster from '../event/EventBroadcaster';
 import Logger from '../../utils/Logger';
 import type { ErpNotification, ErpNotificationType } from '../../models/erp';
 
@@ -200,7 +200,7 @@ export default class ErpNotificationService {
 
       // Lazy import to avoid circular deps & keep notification service lightweight.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ZaloService = require('../ZaloService').default;
+      const ZaloService = require('../zalo/ZaloService').default;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const ZaloAccountManager = require('../ZaloAccountManager')?.default;
       const auth = ZaloAccountManager?.getInstance?.().getAuth?.(botAccountId);

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
-import DatabaseService from '../../src/services/DatabaseService';
-import CRMQueueService from '../../src/services/CRMQueueService';
+import DatabaseService from '../../src/services/database/DatabaseService';
+import CRMQueueService from '../../src/services/crm/CRMQueueService';
 
 export function registerCRMIpc(): void {
 

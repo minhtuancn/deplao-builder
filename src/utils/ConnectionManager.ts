@@ -122,7 +122,7 @@ class ConnectionManager {
         this.connections.delete(zaloId);
         this.connectionLocks.delete(zaloId);
         try {
-            const ZaloService = require('../services/ZaloService').default;
+            const ZaloService = require('../services/zalo/ZaloService').default;
             ZaloService.removeInstanceByZaloId(zaloId);
         } catch {}
         Logger.log(`[ConnectionManager] 🗑️  Removed connection for ${zaloId}`);
@@ -141,7 +141,7 @@ class ConnectionManager {
         this.connectionLocks.delete(zaloId);
         // Clean up ZaloService instance to free API memory
         try {
-            const ZaloService = require('../services/ZaloService').default;
+            const ZaloService = require('../services/zalo/ZaloService').default;
             ZaloService.removeInstanceByZaloId(zaloId);
         } catch {}
         Logger.log(`[ConnectionManager] 🗑️  Removed connection for ${zaloId}`);

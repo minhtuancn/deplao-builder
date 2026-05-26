@@ -6,11 +6,11 @@
 
 import { ipcMain } from 'electron';
 import { v4 as uuid } from 'uuid';
-import DatabaseService from '../../src/services/DatabaseService';
+import DatabaseService from '../../src/services/database/DatabaseService';
 import FacebookConnectionManager from '../../src/utils/FacebookConnectionManager';
 import { initSession, fetchBasicProfileFromHome, fetchFBHomepage } from '../../src/services/facebook/FacebookSession';
 import { loginWithCredentials } from '../../src/services/facebook/FacebookLoginHelper';
-import { secureGet, secureSet, secureDelete } from '../../src/services/SecureSettingsService';
+import { secureGet, secureSet, secureDelete } from '../../src/services/secure/SecureSettingsService';
 import Logger from '../../src/utils/Logger';
 
 // ─── Cookie secure storage helpers ───────────────────────────────────────────

@@ -1,12 +1,12 @@
 import { ipcMain } from 'electron';
-import ZaloService from '../../src/services/ZaloService';
-import WorkflowEngineService from '../../src/services/WorkflowEngineService';
+import ZaloService from '../../src/services/zalo/ZaloService';
+import WorkflowEngineService from '../../src/services/workflow/WorkflowEngineService';
 import ConnectionManager from '../../src/utils/ConnectionManager';
-import HttpConnectionManager from '../../src/services/HttpConnectionManager';
-import DatabaseService from '../../src/services/DatabaseService';
+import HttpConnectionManager from '../../src/services/http/HttpConnectionManager';
+import DatabaseService from '../../src/services/database/DatabaseService';
 import WorkspaceManager from '../../src/utils/WorkspaceManager';
 import Logger from '../../src/utils/Logger';
-import EventBroadcaster from '../../src/services/EventBroadcaster';
+import EventBroadcaster from '../../src/services/event/EventBroadcaster';
 
 /**
  * Registry of IPC handler functions.

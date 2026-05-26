@@ -2145,6 +2145,14 @@ export default function MessageInput() {
       {inlineStickerSuggestions.length > 0 && (
         <div
           className="inline-sticker-bar flex items-center gap-1.5 px-2 py-1.5 border-b border-gray-700/50 overflow-x-auto"
+          style={{ scrollbarWidth: 'none' }}
+          onWheel={e => {
+            // Convert vertical wheel to horizontal scroll so mouse wheel works naturally
+            if (e.deltaY !== 0) {
+              e.preventDefault();
+              e.currentTarget.scrollBy({ left: e.deltaY, behavior: 'auto' });
+            }
+          }}
         >
           <span className="text-[10px] text-gray-500 flex-shrink-0 mr-0.5">🎭</span>
           {inlineStickerSuggestions.map((s: any) => (
@@ -3463,7 +3471,14 @@ function StickerPicker({
           ) : (
             <>
               {/* Pack list — horizontal scroll */}
-              <div className="flex gap-1 px-2 py-2 overflow-x-auto flex-shrink-0 border-b border-gray-700/50">
+              <div className="flex gap-1 px-2 py-2 overflow-x-auto flex-shrink-0 border-b border-gray-700/50"
+                   onWheel={e => {
+                     // Convert vertical wheel to horizontal scroll so mouse wheel works naturally
+                     if (e.deltaY !== 0) {
+                       e.preventDefault();
+                       e.currentTarget.scrollBy({ left: e.deltaY, behavior: 'auto' });
+                     }
+                   }}>
                 {packs.map((pack) => (
                   <button
                     key={pack.catId}

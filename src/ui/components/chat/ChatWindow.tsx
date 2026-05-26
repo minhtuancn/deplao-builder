@@ -2840,16 +2840,21 @@ function MediaBubble({ msg, onView, isSent, allContacts, groupMembersList, onMen
   groupMembersList?: any[];
   onMentionClick?: (userId: string, e: React.MouseEvent) => void;
 }) {
-  // 'local'  = ưu tiên localUrl trước (mặc định — ảnh Zalo CDN xóa sau 14 ngày)
-  // 'remote' = fallback sang remoteUrl khi local chưa tải xong hoặc không tồn tại
-  const [imgSrc, setImgSrc] = React.useState<'local' | 'remote'>('local');
+  // Remote-first: hiển thị CDN ngay lập tức, chuyển sang local sau khi tải xong
+  // useLocal=true khi local_paths đã có → thử dùng file local (nhanh hơn, bền vững hơn)
+  const [useLocal, setUseLocal] = React.useState(false);
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
   const localPathsStr = typeof msg.local_paths === 'string' ? msg.local_paths : JSON.stringify(msg.local_paths ?? '');
   React.useEffect(() => {
     setLoadFailed(false);
-    setImgSrc('local');
+    // Chỉ dùng local khi local_paths thực sự có path (file đã tải về máy)
+    try {
+      const lp: Record<string, string> = JSON.parse(localPathsStr || '{}');
+      const hasPath = !!(lp.main || lp.hd || (Object.values(lp)[0] as string));
+      setUseLocal(hasPath);
+    } catch { setUseLocal(false); }
   }, [localPathsStr]);
 
   // Parse local URL
@@ -2899,14 +2904,14 @@ function MediaBubble({ msg, onView, isSent, allContacts, groupMembersList, onMen
     } catch {}
   }
 
-  // Local-first: ưu tiên file local đã lưu; fallback remote khi local lỗi
-  const displayUrl = imgSrc === 'remote' ? (remoteUrl || localUrl) : (localUrl || remoteUrl);
+  // Remote-first: CDN hiển thị ngay; chuyển local khi file đã tải xong
+  // Nếu local lỗi (race condition file chưa kịp ghi) → tự fallback về CDN
+  const displayUrl = useLocal ? (localUrl || remoteUrl) : (remoteUrl || localUrl);
   const viewUrl = remoteUrl || displayUrl;
 
-  // alt="" → Chromium không hiện broken-image icon khi local chưa tải xong
   const handleImgError = () => {
-    if (imgSrc === 'local' && remoteUrl && remoteUrl !== displayUrl) {
-      setImgSrc('remote'); // Local lỗi (chưa tải) → fallback Zalo CDN
+    if (useLocal && remoteUrl) {
+      setUseLocal(false); // local lỗi → fallback CDN ngay, không flash
     } else {
       setLoadFailed(true);
     }
@@ -2934,7 +2939,22 @@ function MediaBubble({ msg, onView, isSent, allContacts, groupMembersList, onMen
   };
 
   if (loadFailed) {
-    return <span className="text-xs opacity-60">[Không tải được ảnh]</span>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-1.5 max-w-xs w-full h-32 rounded-xl bg-gray-700/40 text-gray-500 select-none">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-40">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+          <line x1="2" y1="2" x2="22" y2="22" strokeWidth="1.5"/>
+        </svg>
+        <span className="text-xs opacity-60">Không tải được ảnh</span>
+        {remoteUrl && (
+          <button onClick={() => ipc.shell?.openExternal(remoteUrl)}
+            className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline transition-colors">
+            Mở link Zalo
+          </button>
+        )}
+      </div>
+    );
   }
 
   // Multi-image grid (FB batch send temp)
@@ -2951,15 +2971,23 @@ function MediaBubble({ msg, onView, isSent, allContacts, groupMembersList, onMen
   }
 
   if (!displayUrl) {
-    return <span className="text-xs opacity-60">[Hình ảnh]</span>;
+    // Không có cả remote lẫn local — hiển thị placeholder tĩnh (không animation)
+    return (
+      <div className="flex items-center justify-center max-w-xs w-full h-32 rounded-xl bg-gray-700/40 text-gray-500 select-none">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-30">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+    );
   }
 
   const imgNode = (
-    <div className="relative group/media">
+    <div className={`relative group/media max-w-xs h-64 overflow-hidden${caption ? ' rounded-t-xl' : ' rounded-xl'}`}>
       <img
         src={displayUrl}
         alt=""
-        className={`max-w-xs h-64 cursor-pointer hover:opacity-90 transition-opacity bg-gray-700/30 object-contain w-full${caption ? ' rounded-t-xl' : ' rounded-xl'}`}
+        className={`h-64 cursor-pointer hover:opacity-90 bg-gray-700/30 object-contain w-full${caption ? ' rounded-t-xl' : ' rounded-xl'}`}
         onClick={() => onView(viewUrl)}
         onError={handleImgError}
       />
@@ -3450,13 +3478,20 @@ function MediaGroupBubble({ msgs: groupMsgs, onView }: { msgs: any[]; onView: (s
 
 /** Ảnh đơn bên trong MediaGroupBubble — chiều cao cố định h-40 */
 function SingleImageInGroup({ msg, onView }: { msg: any; onView: (src: string) => void }) {
-  // Local-first; fallback remote khi local lỗi (chưa tải xong)
-  const [imgSrc, setImgSrc] = React.useState<'local' | 'remote'>('local');
+  // Remote-first: hiển thị CDN ngay; chuyển local khi file đã tải xong
+  const [useLocal, setUseLocal] = React.useState(false);
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
 
   const localPathsStr = typeof msg.local_paths === 'string' ? msg.local_paths : JSON.stringify(msg.local_paths ?? '');
-  React.useEffect(() => { setLoadFailed(false); setImgSrc('local'); }, [localPathsStr]);
+  React.useEffect(() => {
+    setLoadFailed(false);
+    try {
+      const lp: Record<string, string> = JSON.parse(localPathsStr || '{}');
+      const hasPath = !!(lp.main || lp.hd || (Object.values(lp)[0] as string));
+      setUseLocal(hasPath);
+    } catch { setUseLocal(false); }
+  }, [localPathsStr]);
 
   let localUrl = '';
   let localFilePath = '';
@@ -3476,13 +3511,14 @@ function SingleImageInGroup({ msg, onView }: { msg: any; onView: (src: string) =
     }
   } catch {}
 
-  // Local-first; fallback remote khi local lỗi
-  const displayUrl = imgSrc === 'remote' ? (remoteUrl || localUrl) : (localUrl || remoteUrl);
+  // Remote-first: CDN hiển thị ngay; chuyển local khi file đã tải xong
+  const displayUrl = useLocal ? (localUrl || remoteUrl) : (remoteUrl || localUrl);
   const viewUrl = remoteUrl || displayUrl;
 
   const handleImgError = () => {
-    if (imgSrc === 'local' && remoteUrl && remoteUrl !== displayUrl) setImgSrc('remote');
-    else setLoadFailed(true);
+    if (useLocal && remoteUrl) {
+      setUseLocal(false); // local lỗi → fallback CDN ngay
+    } else setLoadFailed(true);
   };
 
   const handleSaveAs = async (e: React.MouseEvent) => {
@@ -3498,7 +3534,15 @@ function SingleImageInGroup({ msg, onView }: { msg: any; onView: (src: string) =
   };
 
   if (loadFailed || !displayUrl) {
-    return <div className="h-40 flex-1 min-w-0 bg-gray-700/50 flex items-center justify-center text-xs text-gray-500 select-none">[Ảnh]</div>;
+    return (
+      <div className="h-40 flex-1 min-w-0 bg-gray-700/50 flex items-center justify-center text-gray-500 select-none">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-30">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+          {loadFailed && <line x1="2" y1="2" x2="22" y2="22"/>}
+        </svg>
+      </div>
+    );
   }
   return (
     <div className="relative flex-1 min-w-0 group/singleimg">
