@@ -20,6 +20,7 @@ interface TargetSelectorProps {
   existingContactIds: Set<string>;
   onConfirm: (contacts: any[]) => void;
   onClose: () => void;
+  headerContent?: React.ReactNode;
 }
 
 type SelectMode = 'manual' | 'by_label' | 'friends_only' | 'groups_only' | 'by_phone';
@@ -33,7 +34,7 @@ function normalizePhone(raw: string): string {
 }
 
 
-export default function TargetSelector({ zaloId, allLabels, localLabels, localLabelThreadMap, existingContactIds, onConfirm, onClose }: TargetSelectorProps) {
+export default function TargetSelector({ zaloId, allLabels, localLabels, localLabelThreadMap, existingContactIds, onConfirm, onClose, headerContent }: TargetSelectorProps) {
   const [mode, setMode] = useState<SelectMode>('manual');
   const [selectedZaloLabelIds, setSelectedZaloLabelIds] = useState<number[]>([]);
   const [selectedLocalLabelIds, setSelectedLocalLabelIds] = useState<number[]>([]);
@@ -252,6 +253,13 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white">✕</button>
         </div>
+
+        {/* Header content slot (e.g. wizard step indicator) */}
+        {headerContent && (
+          <div className="border-b border-gray-700 flex-shrink-0 px-5">
+            {headerContent}
+          </div>
+        )}
 
         {/* Mode selector */}
         <div className="flex gap-1 px-4 py-2.5 border-b border-gray-700 flex-shrink-0 overflow-x-auto">

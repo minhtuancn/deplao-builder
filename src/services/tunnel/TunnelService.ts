@@ -27,10 +27,12 @@ try {
   install = cf.install;
 
   // Fix binary path when running inside Electron asar archive.
-  // asarUnpack extracts the binary to app.asar.unpacked/, but __dirname
-  // still resolves to the asar path. Rewrite bin to point to unpacked location.
-  if (bin && bin.includes('app.asar')) {
+  // cf.bin uses __dirname which resolves inside app.asar. We must use cf.use()
+  // to update the module-scope bin variable that Tunnel.quick() reads via
+  // import_constants.bin — a local assignment wouldn't propagate.
+  if (bin && bin.includes('app.asar') && typeof cf.use === 'function') {
     bin = bin.replace('app.asar', 'app.asar.unpacked');
+    cf.use(bin);  // ← writes into constants.js module-scope
     Logger.log(`[TunnelService] Rewrote bin path for asar: ${bin}`);
   }
 } catch {

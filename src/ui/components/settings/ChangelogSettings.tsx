@@ -14,6 +14,29 @@ interface VersionEntry {
 // ─── Changelog data — thêm entry mới vào ĐẦU mảng khi có bản cập nhật ────────
 const CHANGELOG: VersionEntry[] = [
   {
+    version: '26.4.6',
+    date: '06/2026',
+    type: 'minor',
+    highlights: [
+      '📊 Giới hạn gửi chiến dịch theo ngày — tự động dừng khi đạt giới hạn, hẹn giờ chạy tiếp ngày sau',
+      '🔧 Sửa lỗi chiến dịch gửi ảnh không thành công',
+    ],
+    changes: [
+      {
+        category: 'new',
+        items: [
+          'Giới hạn số liên hệ gửi/ngày cho chiến dịch CRM — cài đặt số lượng tối đa và giờ bắt đầu chạy ngày hôm sau, tự động dừng khi đạt giới hạn và tiếp tục vào ngày mới',
+        ],
+      },
+      {
+        category: 'fixed',
+        items: [
+          'Sửa lỗi chiến dịch CRM có nội dung ảnh (ảnh + text hoặc chỉ ảnh) không gửi được ảnh',
+        ],
+      },
+    ],
+  },
+  {
     version: '26.4.5',
     date: '06/2026',
     type: 'minor',

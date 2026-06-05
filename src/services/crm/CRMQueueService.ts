@@ -2,6 +2,9 @@ import DatabaseService from '../database/DatabaseService';
 import ConnectionManager from '../../utils/ConnectionManager';
 import EventBroadcaster from '../event/EventBroadcaster';
 import Logger from '../../utils/Logger';
+import * as fs from 'fs';
+import * as path from 'path';
+import imageSize from 'image-size';
 
 /**
  * CRMQueueService — chạy trong main process
@@ -16,6 +19,8 @@ class CRMQueueService {
     // Token bucket: max 60/giờ — refill 1 token mỗi 60s
     private tokens: Map<string, number> = new Map();
     private lastRefillAt: Map<string, number> = new Map();
+    // Daily limit tracking: campaignId → paused due to daily limit
+    private dailyPausedCampaigns: Map<number, boolean> = new Map();
 
     public readonly MAX_TOKENS = 60;
     private readonly REFILL_INTERVAL_MS = 60 * 1000;  // 1 phút / token → 60/giờ
@@ -69,12 +74,14 @@ class CRMQueueService {
         if (!hasActive) this.stopForAccount(zaloId);
     }
 
-    public getStatus(zaloId: string): { running: boolean; tokens: number; maxTokens: number; lastSentAt: number } {
+    public getStatus(zaloId: string): { running: boolean; tokens: number; maxTokens: number; lastSentAt: number; dailyPaused: boolean } {
+        const isDailyPaused = Array.from(this.dailyPausedCampaigns.values()).some(v => v);
         return {
             running: this.timers.has(zaloId),
             tokens: this.tokens.get(zaloId) ?? this.MAX_TOKENS,
             maxTokens: this.MAX_TOKENS,
             lastSentAt: this.lastSentAt.get(zaloId) ?? 0,
+            dailyPaused: isDailyPaused,
         };
     }
 
@@ -122,6 +129,32 @@ class CRMQueueService {
         if (!item) {
             this.checkAndStopIfIdle(zaloId);
             return;
+        }
+
+        // ── Daily send limit check ──────────────────────────────────────
+        const campaignData = db.getCRMCampaign(item.campaign_id);
+        if (campaignData && campaignData.daily_send_limit && campaignData.daily_send_limit > 0) {
+            const dailyCount = db.getDailySentCountForCampaign(item.campaign_id);
+            if (dailyCount >= campaignData.daily_send_limit) {
+                // Daily limit reached — pause this campaign for today
+                this.dailyPausedCampaigns.set(item.campaign_id, true);
+                Logger.log(`[CRMQueue] Campaign ${item.campaign_id} daily limit reached: ${dailyCount}/${campaignData.daily_send_limit}`);
+                this.broadcastStatus(zaloId, 'daily_limit_reached');
+                return;
+            }
+            // If some contacts sent today but not yet past daily_start_time, wait
+            // First day exemption: dailyCount === 0 → run immediately
+            if (dailyCount > 0) {
+                const now = new Date();
+                const [hh, mm] = (campaignData.daily_start_time || '08:00').split(':').map(Number);
+                const todayStartTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh || 8, mm || 0, 0);
+                if (now < todayStartTime) {
+                    Logger.log(`[CRMQueue] Campaign ${item.campaign_id}: before daily start time ${campaignData.daily_start_time}`);
+                    this.broadcastStatus(zaloId, 'waiting_for_start_time');
+                    return;
+                }
+            }
+            this.dailyPausedCampaigns.delete(item.campaign_id);
         }
 
         // Check delay (campaign.delay_seconds + jitter ±10s)
@@ -211,18 +244,50 @@ class CRMQueueService {
                 await (conn.api as any).sendMessage({ msg: text }, threadId, threadType);
             }
             const imgs = (block.images || []).filter(Boolean);
-            if (imgs.length === 1) {
+            if (imgs.length > 0) {
                 await new Promise(r => setTimeout(r, 500));
-                await (conn.api as any).sendImage(imgs[0], threadId, threadType);
-            } else if (imgs.length > 1) {
-                // Batch send all images in one call
-                await new Promise(r => setTimeout(r, 500));
-                await (conn.api as any).sendImages(imgs, threadId, threadType);
+                // Build attachments — read each image file from disk
+                const attachments: any[] = [];
+                for (const filePath of imgs) {
+                    try {
+                        const buffer = fs.readFileSync(filePath);
+                        const baseName = path.basename(filePath);
+                        const ext = path.extname(baseName) || '.jpg';
+                        const safeFilename = (path.extname(baseName) ? baseName : `${baseName}${ext}`) as `${string}.${string}`;
+                        let width = 0, height = 0;
+                        try { const dim = imageSize(buffer); width = dim.width ?? 0; height = dim.height ?? 0; } catch {}
+                        attachments.push({ data: buffer, filename: safeFilename, metadata: { totalSize: buffer.length, width, height } });
+                    } catch (readErr: any) {
+                        Logger.error(`[CRMQueue] Image read failed: ${filePath} → ${readErr.message}`);
+                        throw new Error(`Không đọc được ảnh: ${filePath} — ${readErr.message}`);
+                    }
+                }
+                if (attachments.length > 0) {
+                    await (conn.api as any).sendMessage({ msg: '', attachments }, threadId, threadType);
+                }
             }
         };
 
         // Legacy single-message string for log display
-        const message = blocksToSend.length > 0 ? substitute(blocksToSend[0].text || '') : '';
+        // Include image indicator when block has images but no text
+        const firstBlock = blocksToSend[0];
+        const firstBlockText = firstBlock ? substitute(firstBlock.text || '') : '';
+        const firstBlockImgCount = firstBlock?.images?.filter(Boolean).length || 0;
+        const message = firstBlockText.trim()
+          ? firstBlockText + (firstBlockImgCount > 0 ? ` + ${firstBlockImgCount} ảnh` : '')
+          : firstBlockImgCount > 0
+            ? `[${firstBlockImgCount} ảnh]`
+            : '(trống)';
+
+        // Helper: describe block content for log (text + image count)
+        const describeBlock = (block: ContentBlock): string => {
+            const txt = substitute(block.text || '').trim();
+            const imgCount = (block.images || []).filter(Boolean).length;
+            if (txt && imgCount > 0) return `${txt} + ${imgCount} ảnh`;
+            if (txt) return txt;
+            if (imgCount > 0) return `[${imgCount} ảnh]`;
+            return '(trống)';
+        };
 
         // Common log base fields
         const logBase = {
@@ -245,8 +310,9 @@ class CRMQueueService {
                     await sendBlock(blocks[bi], threadId, threadType);
                     sent++;
                 } catch (blockErr: any) {
-                    errors.push(blockErr.message || String(blockErr));
-                    Logger.warn(`[CRMQueue] Block ${bi + 1}/${blocks.length} failed for ${threadId}: ${blockErr.message}`);
+                    const errMsg = blockErr?.message || String(blockErr);
+                    errors.push(errMsg);
+                    Logger.error(`[CRMQueue] Block ${bi + 1}/${blocks.length} failed for ${threadId}: ${errMsg}`);
                 }
             }
             return { sent, errors };
@@ -257,7 +323,9 @@ class CRMQueueService {
                 // ── Gửi vào nhóm ─────────────────────────────────────────────────
                 const threadType = 1;
                 const result = await sendBlocks(blocksToSend, effectiveContactId, threadType);
-                const logMsg = `[Nhóm] ${sendMode === 'all' ? `${result.sent}/${blocksToSend.length} nội dung` : message}`;
+                const logMsg = sendMode === 'all'
+                    ? `[Nhóm] ${result.sent}/${blocksToSend.length} nội dung: ${blocksToSend.map(describeBlock).join(' | ')}`
+                    : `[Nhóm] ${message}`;
                 db.updateCampaignContactStatus(item.id!, result.errors.length > 0 ? 'failed' : 'sent', result.errors.join('; ') || undefined);
                 db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent', send_type: 'message',
                     data_request: JSON.stringify({ type: 'sendMessage', threadId: effectiveContactId, threadType, blocks: blocksToSend.length, sent: result.sent }),
@@ -272,7 +340,7 @@ class CRMQueueService {
                             const threadType = 0;
                             const result = await sendBlocks(blocksToSend, effectiveContactId, threadType);
                             const logMsg = sendMode === 'all'
-                                ? `[Hỗn hợp/Tin nhắn] ${result.sent}/${blocksToSend.length} nội dung gửi lần lượt`
+                                ? `[Hỗn hợp/Tin nhắn] ${result.sent}/${blocksToSend.length} nội dung: ${blocksToSend.map(describeBlock).join(' | ')}`
                                 : `[Hỗn hợp/Tin nhắn] ${message}`;
                             db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent', send_type: 'message',
                                 data_request: JSON.stringify({ type: 'sendMessage', threadId: effectiveContactId, threadType, blocks: blocksToSend.length, sent: result.sent }),
@@ -355,10 +423,11 @@ class CRMQueueService {
                 const threadType = 0;
                 const result = await sendBlocks(blocksToSend, effectiveContactId, threadType);
                 const logMsg = sendMode === 'all'
-                    ? `[${result.sent}/${blocksToSend.length} nội dung gửi lần lượt] ${message}`
+                    ? `[${result.sent}/${blocksToSend.length} nội dung] ${blocksToSend.map(describeBlock).join(' | ')}`
                     : message;
-                db.updateCampaignContactStatus(item.id!, result.errors.length > 0 ? 'failed' : 'sent', result.errors.join('; ') || undefined);
-                db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent',
+                const finalStatus = result.errors.length > 0 ? 'failed' : 'sent';
+                db.updateCampaignContactStatus(item.id!, finalStatus, result.errors.join('; ') || undefined);
+                db.saveSendLog({ ...logBase, message: logMsg, status: finalStatus,
                     data_request: JSON.stringify({ type: 'sendMessage', threadId: effectiveContactId, threadType, blocks: blocksToSend.length, sent: result.sent }),
                     data_response: '' });
             }
@@ -373,16 +442,25 @@ class CRMQueueService {
             this.checkCampaignCompletion(item.campaign_id, zaloId);
 
         } catch (err: any) {
-            Logger.error(`[CRMQueue] ❌ Failed to send to ${effectiveContactId}: ${err.message}`);
-            db.updateCampaignContactStatus(item.id!, 'failed', err.message);
-            db.saveSendLog({ ...logBase,
-                message: item.template_message || '',
-                status: 'failed', error: err.message,
-                send_type: campaignType === 'friend_request' ? 'friend_request' : campaignType === 'mixed' ? 'mixed' : 'message',
-                data_request: JSON.stringify({ type: campaignType, contact_id: effectiveContactId }),
-                data_response: '' });
-            db.save();
-            this.broadcastProgress(zaloId, item.campaign_id, effectiveContactId, 'failed', err.message);
+            const errMsg = err?.message || String(err);
+            Logger.error(`[CRMQueue] ❌ Failed to send to ${effectiveContactId}: ${errMsg}`);
+            // Always save log on failure — use describeBlock for human-readable message
+            const fallbackLogMsg = blocksToSend.length > 0
+                ? blocksToSend.map(describeBlock).join(' | ')
+                : (item.template_message || '(unknown)');
+            try {
+                db.updateCampaignContactStatus(item.id!, 'failed', errMsg);
+                db.saveSendLog({ ...logBase,
+                    message: `[Lỗi] ${fallbackLogMsg}`,
+                    status: 'failed', error: errMsg,
+                    send_type: campaignType === 'friend_request' ? 'friend_request' : campaignType === 'mixed' ? 'mixed' : 'message',
+                    data_request: JSON.stringify({ type: campaignType, contact_id: effectiveContactId }),
+                    data_response: '' });
+                db.save();
+            } catch (logErr: any) {
+                Logger.error(`[CRMQueue] ❌ Failed to save error log: ${logErr.message}`);
+            }
+            this.broadcastProgress(zaloId, item.campaign_id, effectiveContactId, 'failed', errMsg);
         } finally {
             this.isProcessing.set(zaloId, false);
         }
@@ -406,20 +484,25 @@ class CRMQueueService {
     }
 
     private broadcastProgress(zaloId: string, campaignId: number, contactId: string, status: string, error?: string): void {
+        const db = DatabaseService.getInstance();
+        const dailyCount = db.getDailySentCountForCampaign(campaignId);
         EventBroadcaster.emit('crm:queueUpdate', {
             zaloId, campaignId, contactId, status, error,
             tokens: this.tokens.get(zaloId) ?? 0,
             maxTokens: this.MAX_TOKENS,
             lastSentAt: this.lastSentAt.get(zaloId) ?? 0,
+            dailySentCount: dailyCount,
         });
     }
 
     private broadcastStatus(zaloId: string, type: string): void {
+        const isDailyPaused = type === 'daily_limit_reached' || type === 'waiting_for_start_time';
         EventBroadcaster.emit('crm:queueStatus', {
             zaloId, type,
             tokens: this.tokens.get(zaloId) ?? 0,
             maxTokens: this.MAX_TOKENS,
             lastSentAt: this.lastSentAt.get(zaloId) ?? 0,
+            dailyPaused: isDailyPaused,
         });
     }
 
