@@ -14,6 +14,53 @@ interface VersionEntry {
 // ─── Changelog data — thêm entry mới vào ĐẦU mảng khi có bản cập nhật ────────
 const CHANGELOG: VersionEntry[] = [
   {
+    version: '26.4.7',
+    date: '06/2026',
+    type: 'minor',
+    highlights: [
+      '🔗 Chiến dịch CRM: thêm mới chọn đối tượng theo UID trực tiếp',
+      '🔄 Tải lại biệt danh (alias) — nút reload trên header và tự động tìm alias mỗi ngày',
+      '📊 Log chiến dịch chi tiết hơn — lưu response và lỗi từng block',
+      '📡 Nâng cấp kết nối SSE — exponential backoff, tự reconnect khi mất kết nối',
+      '📖 Hướng dẫn sử dụng & báo lỗi mới — truy cập nhanh từ TopBar',
+    ],
+    changes: [
+      {
+        category: 'new',
+        items: [
+          'Chiến dịch CRM: thêm mode chọn đối tượng theo UID — nhập danh sách UID trực tiếp, tra cứu tên khi gửi',
+          'Tải lại biệt danh: nút reload alias trên ChatHeader và ConversationInfo panel cho hội thoại 1-1 trên Zalo',
+          'Tự động refresh alias nền mỗi 24 giờ khi mở hội thoại — giữ biệt danh luôn cập nhật',
+          'Auto-fetch thông tin liên hệ khi mở hội thoại chỉ có UID (chưa có tên/avatar) — tự động lấy từ API',
+          'Tự động tải lại dữ liệu (contacts, flags) sau khi đồng bộ full/delta từ workspace khác',
+          'Dashboard: thêm tooltip giải thích cho nút Gộp tài khoản, Thêm workspace và Hỗ trợ khi rê chuột',
+          'TopBar: thêm nút truy cập nhanh Hướng dẫn sử dụng và Báo lỗi',
+          'Trang Hướng dẫn báo lỗi mới (Cài đặt → Giới thiệu → Hướng dẫn báo lỗi) — quy trình 5 bước với ví dụ mẫu',
+          'Health check tự động cho workspace từ xa — kiểm tra và reconnect mỗi 60 giây',
+        ],
+      },
+      {
+        category: 'improved',
+        items: [
+          'Nâng cấp kết nối SSE: exponential backoff (3s → 30s cap), tự reconnect khi heartbeat fail 2 lần liên tiếp',
+          'Log chiến dịch CRM: lưu chi tiết API response và error message từng block vào send history',
+          'CSV export: SĐT và UID không bị Excel chuyển thành scientific notation (ép dạng text ="...")',
+          'Lọc danh sách @mention — ẩn thành viên không có tên hiển thị khỏi gợi ý nhắc đến',
+          'Chế độ nhân viên ổn định hơn: không tự kết nối Zalo ở workspace remote, boss sở hữu toàn bộ kết nối',
+          'Điều hướng Settings: sửa thứ tự dispatch sự kiện để tab và subtab mở đúng',
+          'Thanh nhãn local: nút đóng (X) và bố cục gọn hơn, mũi tên expand/collapse chuyển sang bên phải',
+        ],
+      },
+      {
+        category: 'fixed',
+        items: [
+          'Sửa click vào ảnh trong nhóm (SingleImageInGroup) không mở được trình xem ảnh',
+          'Sửa lỗi điều hướng từ Dashboard/WorkspaceSwitcher sang Settings tab sai (dispatch chưa đúng thứ tự)',
+        ],
+      },
+    ],
+  },
+  {
     version: '26.4.6',
     date: '06/2026',
     type: 'minor',

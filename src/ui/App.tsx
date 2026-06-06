@@ -264,6 +264,10 @@ export default function App() {
   }, []);
 
   const reconnectAfterNetworkRestore = useCallback(async () => {
+    // Skip for employee (remote) workspace — boss owns Zalo connections
+    const netActiveWs = await ipc.workspace?.getActive?.().then((r: any) => r?.workspace).catch(() => null);
+    if (netActiveWs?.type === 'remote') return;
+
     const currentAccounts = useAccountStore.getState().accounts.filter(a => (a.channel || 'zalo') === 'zalo');
     if (!currentAccounts.length) return;
 
@@ -682,6 +686,45 @@ export default function App() {
     return () => unsub?.();
   }, []);
 
+  // ─── Handle sync completion — reload data after full/delta sync ────────────
+  useEffect(() => {
+    const unsub = window.electronAPI?.on('workspace:syncComplete', async (data: any) => {
+      if (!data?.workspaceId) return;
+      const activeWsId = useWorkspaceStore.getState().activeWorkspaceId;
+      if (data.workspaceId !== activeWsId) return;
+
+      console.log(`[App] workspace:syncComplete received: type=${data.syncType} workspace=${data.workspaceId}`);
+
+      // Reload contacts from DB for all assigned accounts
+      const empStore = useEmployeeStore.getState();
+      const accounts = empStore.assignedAccounts || [];
+      if (accounts.length > 0) {
+        for (const zaloId of accounts) {
+          try {
+            const contactsRes = await Promise.race([
+              ipc.db?.getContacts(zaloId),
+              new Promise(r => setTimeout(() => r(null), 5000)),
+            ]) as any;
+            if (contactsRes?.contacts) {
+              setContacts(zaloId, contactsRes.contacts);
+            }
+          } catch {}
+        }
+        // Reload flags
+        const { loadFlags } = useAppStore.getState();
+        for (const zaloId of accounts) {
+          try {
+            await Promise.race([
+              loadFlags(zaloId),
+              new Promise(r => setTimeout(r, 3000)),
+            ]);
+          } catch {}
+        }
+      }
+    });
+    return () => unsub?.();
+  }, [setContacts]);
+
   // ─── nav:view — navigate to a top-level view from other components ───────────
   useEffect(() => {
     const handler = (e: Event) => {
@@ -857,12 +900,18 @@ export default function App() {
           // Sync badge
           ipc.app?.setBadge(getFilteredUnreadCount());
 
-          // 3. Auto-reconnect saved Zalo accounts
-          for (const acc of accountsRes.accounts) {
-            if ((acc.channel || 'zalo') !== 'zalo') continue; // Skip FB accounts
-            if (!acc.isConnected) {
-              const auth = { cookies: acc.cookies, imei: acc.imei, userAgent: acc.user_agent };
-              ipc.login?.connectAccount(auth).catch(() => {});
+          // 3. Auto-reconnect saved Zalo accounts (ONLY for boss/local workspace)
+          // Employee (remote) workspace must NOT connect Zalo directly —
+          // boss owns all Zalo connections and relays events via SSE.
+          const initActiveWs = await ipc.workspace?.getActive?.().then((r: any) => r?.workspace).catch(() => null);
+          const isEmployeeMode = initActiveWs?.type === 'remote';
+          if (!isEmployeeMode) {
+            for (const acc of accountsRes.accounts) {
+              if ((acc.channel || 'zalo') !== 'zalo') continue; // Skip FB accounts
+              if (!acc.isConnected) {
+                const auth = { cookies: acc.cookies, imei: acc.imei, userAgent: acc.user_agent };
+                ipc.login?.connectAccount(auth).catch(() => {});
+              }
             }
           }
 
@@ -925,6 +974,10 @@ export default function App() {
 
   useEffect(() => {
     const runHealthCheck = async () => {
+      // Skip health check for employee (remote) workspace — boss owns Zalo connections
+      const hcActiveWs = await ipc.workspace?.getActive?.().then((r: any) => r?.workspace).catch(() => null);
+      if (hcActiveWs?.type === 'remote') return;
+
       const currentAccounts = useAccountStore.getState().accounts;
       if (!currentAccounts.length) return;
 

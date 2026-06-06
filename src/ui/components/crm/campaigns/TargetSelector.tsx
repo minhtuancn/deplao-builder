@@ -23,7 +23,7 @@ interface TargetSelectorProps {
   headerContent?: React.ReactNode;
 }
 
-type SelectMode = 'manual' | 'by_label' | 'friends_only' | 'groups_only' | 'by_phone';
+type SelectMode = 'manual' | 'by_label' | 'friends_only' | 'groups_only' | 'by_phone' | 'by_uid';
 
 /** Normalize a phone string: remove spaces/dashes, convert +84/84 prefix → 0 */
 function normalizePhone(raw: string): string {
@@ -47,6 +47,11 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
   const [phoneInput, setPhoneInput] = useState('');
   const [phoneList, setPhoneList] = useState<string[]>([]);
   const [phoneResolved, setPhoneResolved] = useState<Map<string, { uid: string; name: string; avatar?: string } | null>>(new Map());
+
+  // ── UID tab state ──
+  const [uidInput, setUidInput] = useState('');
+  const [uidList, setUidList] = useState<string[]>([]);
+  const [uidResolved, setUidResolved] = useState<Map<string, { name: string; avatar?: string } | null>>(new Map());
 
   // Label section scroll ref
   const labelScrollRef = useRef<HTMLDivElement>(null);
@@ -147,6 +152,15 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
     setPhoneList(normalized);
   }, [phoneInput]);
 
+  // ── UID input handling ──
+  useEffect(() => {
+    if (!uidInput.trim()) { setUidList([]); return; }
+    const lines = uidInput.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    // UID is typically a numeric string (Zalo UID)
+    const validUids = [...new Set(lines.filter(s => /^\d{5,}$/.test(s)))];
+    setUidList(validUids);
+  }, [uidInput]);
+
   // ── Auto-resolve from local contacts whenever phoneList or allContacts changes ──
   useEffect(() => {
     if (phoneList.length === 0 || allContacts.length === 0) return;
@@ -174,6 +188,32 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
   // Resolution happens at send time in CRMQueueService to avoid rate limiting.
   // Local-contact cache matching (above) still works without API calls.
 
+  // ── Auto-resolve UIDs from local contacts whenever uidList or allContacts changes ──
+  useEffect(() => {
+    if (uidList.length === 0 || allContacts.length === 0) return;
+    setUidResolved(prev => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const uid of uidList) {
+        if (!next.has(uid)) {
+          const match = allContacts.find(c => c.contact_id === uid);
+          if (match) {
+            next.set(uid, {
+              name: match.alias || match.display_name || '',
+              avatar: match.avatar_url || match.avatar || '',
+            });
+          } else {
+            // Not in local contacts — will be resolved at send time via getUserInfo
+            next.set(uid, null);
+            changed = true;
+          }
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [uidList, allContacts]);
+
   // Final selected contacts
   const finalSelected: any[] = useMemo(() => {
     if (mode === 'by_phone') {
@@ -195,9 +235,26 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
         })
         .filter(c => !existingContactIds.has(c.contact_id));
     }
+    if (mode === 'by_uid') {
+      return uidList
+        .map(uid => {
+          const resolved = uidResolved.get(uid);
+          if (resolved) {
+            return {
+              contact_id: uid,
+              display_name: resolved.name || uid,
+              avatar: resolved.avatar || '',
+              source: 'uid',
+            };
+          }
+          // Not resolved locally — will be resolved at send time via getUserInfo
+          return { contact_id: uid, display_name: '', avatar: '', source: 'uid_pending' };
+        })
+        .filter(c => !existingContactIds.has(c.contact_id));
+    }
     if (mode === 'manual') return available.filter(c => manualSelected.has(c.contact_id));
     return filtered;
-  }, [mode, available, manualSelected, filtered, phoneList, phoneResolved, existingContactIds]);
+  }, [mode, available, manualSelected, filtered, phoneList, phoneResolved, uidList, uidResolved, existingContactIds]);
 
   const toggleManual = (id: string) => {
     setManualSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -236,11 +293,36 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
     }
   };
 
+  const removeUid = (uid: string) => {
+    setUidList(prev => prev.filter(u => u !== uid));
+    setUidInput(prev => {
+      const lines = prev.split('\n').filter(l => l.trim() !== uid);
+      return lines.join('\n');
+    });
+  };
+
+  // Confirm UID contacts — unresolved UIDs are added directly,
+  // getUserInfo will be called at send time in CRMQueueService.
+  const handleConfirmUids = () => {
+    const contacts = uidList
+      .map(uid => {
+        const r = uidResolved.get(uid);
+        if (r) return { contact_id: uid, display_name: r.name || uid, avatar: r.avatar || '' };
+        // Not resolved locally — will be resolved at send time
+        return { contact_id: uid, display_name: '', avatar: '' };
+      })
+      .filter(c => !existingContactIds.has(c.contact_id));
+    if (contacts.length > 0) {
+      onConfirm(contacts);
+      onClose();
+    }
+  };
+
   const totalLabelFilters = selectedZaloLabelIds.length + selectedLocalLabelIds.length;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className={`bg-gray-800 border border-gray-600 rounded-2xl max-h-[85vh] flex flex-col shadow-2xl ${mode === 'by_phone' ? 'w-[700px]' : 'w-[540px]'}`}
+      <div className={`bg-gray-800 border border-gray-600 rounded-2xl max-h-[85vh] flex flex-col shadow-2xl ${mode === 'by_phone' || mode === 'by_uid' ? 'w-[700px]' : 'w-[540px]'}`}
         onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -267,6 +349,7 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
             { key: 'manual' as const, label: '☑ Thủ công' },
             { key: 'by_label' as const, label: '🏷️ Theo nhãn' },
             { key: 'by_phone' as const, label: '📞 Theo SĐT' },
+            { key: 'by_uid' as const, label: '🔗 Theo UID' },
             { key: 'friends_only' as const, label: '🤝 Bạn bè' },
             { key: 'groups_only' as const, label: '👥 Nhóm' },
           ]).map(({ key, label }) => (
@@ -440,6 +523,95 @@ export default function TargetSelector({ zaloId, allLabels, localLabels, localLa
                 onClick={handleConfirmPhones}
                 className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-40">
                 Thêm {phoneList.length} SĐT
+              </button>
+            </div>
+          </>
+        ) : mode === 'by_uid' ? (
+          <>
+            <div className="flex flex-1 overflow-hidden border-b border-gray-700">
+              {/* Left: textarea */}
+              <div className="w-1/2 flex flex-col border-r border-gray-700">
+                <div className="px-3 py-2 border-b border-gray-700/50 flex-shrink-0">
+                  <p className="text-[11px] text-gray-400 font-medium">Nhập hoặc dán UID (mỗi UID 1 dòng)</p>
+                </div>
+                <textarea
+                  value={uidInput}
+                  onChange={e => setUidInput(e.target.value)}
+                  placeholder={"5872634901234\n1234567890123\n..."}
+                  className="flex-1 bg-transparent text-xs text-white placeholder-gray-600 p-3 resize-none outline-none font-mono leading-relaxed"
+                  spellCheck={false}
+                />
+              </div>
+              {/* Right: uid list */}
+              <div className="w-1/2 flex flex-col">
+                <div className="px-3 py-2 border-b border-gray-700/50 flex-shrink-0 flex items-center justify-between">
+                  <p className="text-[11px] text-gray-400 font-medium">
+                    {uidList.length} UID hợp lệ
+                    {uidList.length > 0 && (() => {
+                      const resolved = uidList.filter(u => uidResolved.get(u) != null).length;
+                      return resolved > 0 ? <span className="text-green-400 ml-1">· {resolved} có tên</span> : null;
+                    })()}
+                  </p>
+                  {uidList.length > 0 && (
+                    <button onClick={() => { setUidInput(''); setUidList([]); setUidResolved(new Map()); }}
+                      className="text-[11px] text-red-400 hover:text-red-300">Xóa tất cả</button>
+                  )}
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {uidList.length === 0 ? (
+                    <p className="text-xs text-gray-600 text-center py-8">Nhập UID bên trái →</p>
+                  ) : (
+                    uidList.map((uid, i) => {
+                      const resolved = uidResolved.get(uid);
+                      const existing = existingContactIds.has(uid);
+                      return (
+                        <div key={uid} className={`flex items-center gap-2 px-3 py-2 border-b border-gray-700/30 ${existing ? 'opacity-40' : ''}`}>
+                          <span className="text-[11px] text-gray-600 w-5 text-right flex-shrink-0">{i + 1}</span>
+                          {/* Avatar */}
+                          <div className="w-7 h-7 rounded-full flex-shrink-0 overflow-hidden bg-gray-700">
+                            {resolved?.avatar
+                              ? <img src={resolved.avatar} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              : <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-bold"
+                                  style={{ background: resolved ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : '#374151' }}>
+                                  {resolved ? (resolved.name || uid).charAt(0).toUpperCase() : '?'}
+                                </div>}
+                          </div>
+                          {/* Name + uid */}
+                          <div className="flex-1 min-w-0">
+                            {resolved
+                              ? <>
+                                  <p className="text-xs text-gray-100 truncate font-medium leading-tight">{resolved.name || uid}</p>
+                                  <p className="text-[10px] text-gray-500 font-mono leading-tight">{uid}</p>
+                                </>
+                              : <p className="text-xs text-gray-400 font-mono">{uid}</p>
+                            }
+                          </div>
+                          {existing && <span className="text-[10px] text-yellow-500 flex-shrink-0">đã có</span>}
+                          <button onClick={() => removeUid(uid)} className="text-gray-600 hover:text-red-400 text-xs flex-shrink-0 ml-1">✕</button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* UID footer */}
+            <div className="flex items-center gap-2 px-4 py-3 border-t border-gray-700 flex-shrink-0">
+              <span className="text-xs text-gray-500 flex-1">
+                {uidList.length} UID
+                {uidList.length > 0 && (() => {
+                  const resolvedCount = uidList.filter(u => uidResolved.get(u) != null).length;
+                  return resolvedCount > 0 ? <span className="text-green-400"> · {resolvedCount} có tên</span> : null;
+                })()}
+                {uidList.length > 0 && <span className="text-gray-600"> · Còn lại sẽ lấy tên khi gửi</span>}
+              </span>
+              <button onClick={onClose} className="px-4 py-2 rounded-xl bg-gray-700 text-gray-300 text-sm hover:bg-gray-600">Hủy</button>
+              <button
+                disabled={uidList.length === 0}
+                onClick={handleConfirmUids}
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-40">
+                Thêm {uidList.length} UID
               </button>
             </div>
           </>

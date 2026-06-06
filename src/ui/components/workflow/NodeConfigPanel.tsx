@@ -1334,44 +1334,6 @@ const CONFIG_SCHEMA: Record<string, Field[]> = {
     },
   ],
 
-  // ─── iPOS ─────────────────────────────────────────────────────────────────
-  'ipos.lookupCustomer': [
-    {
-      key: 'phone', label: 'Số điện thoại khách hàng', type: 'text',
-      placeholder: '{{ $trigger.fromPhone }}',
-      templateVars: ['$trigger.fromPhone', '$trigger.content'],
-    },
-  ],
-  'ipos.lookupOrder': [
-    {
-      key: 'phone', label: 'SĐT khách hàng', type: 'text',
-      placeholder: '{{ $trigger.fromPhone }}',
-      templateVars: ['$trigger.fromPhone'],
-    },
-    {
-      key: 'orderId', label: 'Mã đơn / hóa đơn', type: 'text',
-      placeholder: '{{ $trigger.content }}',
-      templateVars: ['$trigger.content'],
-      advanced: true,
-    },
-  ],
-  'ipos.lookupProduct': [
-    {
-      key: 'keyword', label: 'Tên sản phẩm / món ăn', type: 'text',
-      placeholder: '{{ $trigger.content }}',
-      desc: 'Tìm sản phẩm hoặc món ăn trong iPOS.',
-      templateVars: ['$trigger.content'],
-    },
-    { key: 'limit', label: 'Số kết quả tối đa', type: 'number', placeholder: '10', advanced: true },
-  ],
-  'ipos.createOrder': [
-    {
-      key: 'order', label: 'Dữ liệu đơn hàng (JSON)', type: 'json',
-      hint: '{"invoice":{"details":[{"productId":"123","quantity":2,"price":50000}],"customerName":"Nguyễn Văn A","customerPhone":"0901234567","paymentMethod":"CASH","note":"Ít đường"}}',
-      desc: 'Payload hiện tại đang theo builder nội bộ `toIPOS()` — wrapper `invoice` chứa `details[]`, thông tin khách và paymentMethod. Cần verify lại với account iPOS thật nếu mở rộng tiếp.',
-    },
-  ],
-
   // ─── Nhanh.vn ────────────────────────────────────────────────────────────
   'nhanh.lookupCustomer': [
     {

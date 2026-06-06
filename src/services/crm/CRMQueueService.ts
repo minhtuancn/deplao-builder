@@ -198,6 +198,32 @@ class CRMQueueService {
             Logger.log(`[CRMQueue] Phone ${phone} → UID ${resolved.uid} (${resolved.name})`);
         }
 
+        // ── UID resolution at send time ────────────────────────────────────────
+        // If display_name is empty and contact_id looks like a numeric UID (from by_uid import),
+        // fetch user info via API to populate the display name
+        if (!effectiveDisplayName && /^\d{5,}$/.test(effectiveContactId)) {
+            Logger.log(`[CRMQueue] Resolving UID ${effectiveContactId} via getUserInfo...`);
+            try {
+                const infoRes = await (conn.api as any).getUserInfo(effectiveContactId);
+                const profile = infoRes?.response?.changed_profiles?.[effectiveContactId]
+                    ?? infoRes?.changed_profiles?.[effectiveContactId];
+                if (profile) {
+                    effectiveDisplayName = profile.displayName || profile.zaloName || profile.name || '';
+                }
+                if (effectiveDisplayName) {
+                    // Update DB so we don't resolve again on retry
+                    try {
+                        db.updateCampaignContactId(item.id!, effectiveContactId, effectiveDisplayName);
+                    } catch { /* non-critical */ }
+                    Logger.log(`[CRMQueue] UID ${effectiveContactId} → "${effectiveDisplayName}"`);
+                } else {
+                    Logger.warn(`[CRMQueue] UID ${effectiveContactId}: getUserInfo returned no name`);
+                }
+            } catch (uidErr: any) {
+                Logger.warn(`[CRMQueue] UID ${effectiveContactId} getUserInfo failed: ${uidErr.message}`);
+            }
+        }
+
         // Substitute template variables in a message string
         const substitute = (tpl: string) =>
             (tpl || '')
@@ -237,11 +263,13 @@ class CRMQueueService {
             blocksToSend = allBlocks;
         }
 
-        // Helper: send one block (text + images) to a target
-        const sendBlock = async (block: ContentBlock, threadId: string, threadType: number): Promise<void> => {
+        // Helper: send one block (text + images) to a target, returns collected API responses
+        const sendBlock = async (block: ContentBlock, threadId: string, threadType: number): Promise<any[]> => {
+            const responses: any[] = [];
             const text = substitute(block.text || '');
             if (text.trim()) {
-                await (conn.api as any).sendMessage({ msg: text }, threadId, threadType);
+                const resp = await (conn.api as any).sendMessage({ msg: text }, threadId, threadType);
+                responses.push(resp);
             }
             const imgs = (block.images || []).filter(Boolean);
             if (imgs.length > 0) {
@@ -263,9 +291,11 @@ class CRMQueueService {
                     }
                 }
                 if (attachments.length > 0) {
-                    await (conn.api as any).sendMessage({ msg: '', attachments }, threadId, threadType);
+                    const resp = await (conn.api as any).sendMessage({ msg: '', attachments }, threadId, threadType);
+                    responses.push(resp);
                 }
             }
+            return responses;
         };
 
         // Legacy single-message string for log display
@@ -301,13 +331,15 @@ class CRMQueueService {
         };
 
         // Helper: send multiple blocks with per-block error catching and 1s delay
-        const sendBlocks = async (blocks: ContentBlock[], threadId: string, threadType: number): Promise<{ sent: number; errors: string[] }> => {
+        const sendBlocks = async (blocks: ContentBlock[], threadId: string, threadType: number): Promise<{ sent: number; errors: string[]; responses: any[] }> => {
             let sent = 0;
             const errors: string[] = [];
+            const responses: any[] = [];
             for (let bi = 0; bi < blocks.length; bi++) {
                 if (bi > 0) await new Promise(r => setTimeout(r, 1000));
                 try {
-                    await sendBlock(blocks[bi], threadId, threadType);
+                    const resps = await sendBlock(blocks[bi], threadId, threadType);
+                    responses.push(...resps);
                     sent++;
                 } catch (blockErr: any) {
                     const errMsg = blockErr?.message || String(blockErr);
@@ -315,7 +347,7 @@ class CRMQueueService {
                     Logger.error(`[CRMQueue] Block ${bi + 1}/${blocks.length} failed for ${threadId}: ${errMsg}`);
                 }
             }
-            return { sent, errors };
+            return { sent, errors, responses };
         };
 
         try {
@@ -327,9 +359,10 @@ class CRMQueueService {
                     ? `[Nhóm] ${result.sent}/${blocksToSend.length} nội dung: ${blocksToSend.map(describeBlock).join(' | ')}`
                     : `[Nhóm] ${message}`;
                 db.updateCampaignContactStatus(item.id!, result.errors.length > 0 ? 'failed' : 'sent', result.errors.join('; ') || undefined);
-                db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent', send_type: 'message',
+                db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent',
+                    error: result.errors.join('; ') || '', send_type: 'message',
                     data_request: JSON.stringify({ type: 'sendMessage', threadId: effectiveContactId, threadType, blocks: blocksToSend.length, sent: result.sent }),
-                    data_response: '' });
+                    data_response: result.responses.length > 0 ? JSON.stringify(result.responses.length === 1 ? result.responses[0] : result.responses) : '' });
 
             } else if (campaignType === 'mixed' && mixedActions.length > 0) {
                 // ── Hỗn hợp (mới) ────────────────────────────────────────────────
@@ -342,9 +375,10 @@ class CRMQueueService {
                             const logMsg = sendMode === 'all'
                                 ? `[Hỗn hợp/Tin nhắn] ${result.sent}/${blocksToSend.length} nội dung: ${blocksToSend.map(describeBlock).join(' | ')}`
                                 : `[Hỗn hợp/Tin nhắn] ${message}`;
-                            db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent', send_type: 'message',
+                            db.saveSendLog({ ...logBase, message: logMsg, status: result.errors.length > 0 ? 'failed' : 'sent',
+                                error: result.errors.join('; ') || '', send_type: 'message',
                                 data_request: JSON.stringify({ type: 'sendMessage', threadId: effectiveContactId, threadType, blocks: blocksToSend.length, sent: result.sent }),
-                                data_response: '' });
+                                data_response: result.responses.length > 0 ? JSON.stringify(result.responses.length === 1 ? result.responses[0] : result.responses) : '' });
                             if (result.errors.length > 0) anyFailed = true;
                             Logger.log(`[CRMQueue] Mixed/message ✅ → ${effectiveContactId} (${result.sent}/${blocksToSend.length} blocks)`);
 
@@ -365,12 +399,17 @@ class CRMQueueService {
                             Logger.log(`[CRMQueue] Mixed/invite_to_groups ✅ → ${effectiveContactId} into ${mixedGroupIds.length} groups`);
                         }
                     } catch (actionErr: any) {
-                        const errCode = Number(actionErr?.errorCode ?? actionErr?.code ?? -1);
+                        const errCode = Number(actionErr?.errorCode ?? actionErr?.code ?? actionErr?.error_code ?? -1);
                         const req = { type: action, userId: effectiveContactId };
+                        const errResponse = {
+                            error: true,
+                            message: actionErr.message,
+                            errorCode: errCode !== -1 ? errCode : undefined,
+                        };
                         db.saveSendLog({ ...logBase,
-                            message: `[Hỗn hợp/${action}] Lỗi ${errCode}: ${actionErr.message}`,
+                            message: `[Hỗn hợp/${action}] Lỗi: ${actionErr.message}`,
                             status: 'failed', error: actionErr.message,
-                            data_request: JSON.stringify(req), data_response: '' });
+                            data_request: JSON.stringify(req), data_response: JSON.stringify(errResponse) });
                         Logger.warn(`[CRMQueue] Mixed/${action} ❌ → ${effectiveContactId}: ${actionErr.message}`);
                         anyFailed = true;
                     }
@@ -380,12 +419,14 @@ class CRMQueueService {
             } else if (campaignType === 'mixed') {
                 // ── Hỗn hợp (cũ / fallback) ──────────────────────────────────────
                 let actionLabel = 'message';
+                let mixedResp: any[] = [];
                 try {
-                    await sendBlock(blocksToSend[0] ?? { id: '', text: '', images: [] }, effectiveContactId, 0);
+                    mixedResp = await sendBlock(blocksToSend[0] ?? { id: '', text: '', images: [] }, effectiveContactId, 0);
                 } catch (msgErr: any) {
                     if (isMixedFallbackError(msgErr)) {
                         Logger.log(`[CRMQueue] Mixed fallback → sendFriendRequest for ${effectiveContactId}`);
-                        await (conn.api as any).sendFriendRequest(friendMsg, effectiveContactId);
+                        const friendResp = await (conn.api as any).sendFriendRequest(friendMsg, effectiveContactId);
+                        mixedResp = [friendResp];
                         actionLabel = 'friend_request_fallback';
                     } else { throw msgErr; }
                 }
@@ -395,7 +436,7 @@ class CRMQueueService {
                     status: 'sent',
                     send_type: actionLabel === 'message' ? 'message' : 'friend_request',
                     data_request: JSON.stringify({ type: actionLabel, contact_id: effectiveContactId }),
-                    data_response: '' });
+                    data_response: mixedResp.length > 0 ? JSON.stringify(mixedResp.length === 1 ? mixedResp[0] : mixedResp) : '' });
 
             } else if (campaignType === 'friend_request') {
                 // ── Kết bạn only ─────────────────────────────────────────────────
@@ -428,8 +469,9 @@ class CRMQueueService {
                 const finalStatus = result.errors.length > 0 ? 'failed' : 'sent';
                 db.updateCampaignContactStatus(item.id!, finalStatus, result.errors.join('; ') || undefined);
                 db.saveSendLog({ ...logBase, message: logMsg, status: finalStatus,
+                    error: result.errors.join('; ') || '',
                     data_request: JSON.stringify({ type: 'sendMessage', threadId: effectiveContactId, threadType, blocks: blocksToSend.length, sent: result.sent }),
-                    data_response: '' });
+                    data_response: result.responses.length > 0 ? JSON.stringify(result.responses.length === 1 ? result.responses[0] : result.responses) : '' });
             }
 
             // Tiêu thụ 1 token
@@ -450,12 +492,18 @@ class CRMQueueService {
                 : (item.template_message || '(unknown)');
             try {
                 db.updateCampaignContactStatus(item.id!, 'failed', errMsg);
+                // Capture error response details if available
+                const errResponse: any = {
+                    error: true,
+                    message: errMsg,
+                    errorCode: err?.errorCode ?? err?.code ?? err?.error_code ?? undefined,
+                };
                 db.saveSendLog({ ...logBase,
-                    message: `[Lỗi] ${fallbackLogMsg}`,
+                    message: `[Lỗi] ${errMsg} — ${fallbackLogMsg}`,
                     status: 'failed', error: errMsg,
                     send_type: campaignType === 'friend_request' ? 'friend_request' : campaignType === 'mixed' ? 'mixed' : 'message',
                     data_request: JSON.stringify({ type: campaignType, contact_id: effectiveContactId }),
-                    data_response: '' });
+                    data_response: JSON.stringify(errResponse) });
                 db.save();
             } catch (logErr: any) {
                 Logger.error(`[CRMQueue] ❌ Failed to save error log: ${logErr.message}`);

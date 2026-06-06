@@ -19,6 +19,7 @@ type SettingsTab = 'notifications' | 'accounts' | 'storage' | 'conversation' | '
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('conversation');
+  const [introSubtab, setIntroSubtab] = useState<string | null>(null);
   const [seenTabs, setSeenTabs] = useState<Set<string>>(() => loadSeenTabs());
   const [unreadChangelog, setUnreadChangelog] = useState(() => hasUnseenChangelog());
   const [storagePath, setStoragePath] = useState<string>('');
@@ -46,8 +47,9 @@ export default function Settings() {
   // Lắng nghe sự kiện điều hướng từ các màn hình khác (ví dụ: link điều khoản trong modal đăng nhập)
   useEffect(() => {
     const handler = (e: Event) => {
-      const { tab } = (e as CustomEvent).detail || {};
+      const { tab, subtab } = (e as CustomEvent).detail || {};
       if (tab) setActiveTab(tab as SettingsTab);
+      if (subtab) setIntroSubtab(subtab);
     };
     window.addEventListener('nav:settings', handler);
     return () => window.removeEventListener('nav:settings', handler);
@@ -475,7 +477,7 @@ export default function Settings() {
         {activeTab === 'workspace' && <WorkspaceSettings />}
 
         {/* ── Introduction ── */}
-        {activeTab === 'introduction' && <IntroductionSettings />}
+        {activeTab === 'introduction' && <IntroductionSettings initialSubtab={introSubtab as any} />}
 
         {/* ── Changelog ── */}
         {activeTab === 'changelog' && <ChangelogSettings />}

@@ -326,6 +326,37 @@ export default function TopBar() {
           </div>
         )}
 
+        {/* Hướng dẫn sử dụng → Settings > Giới thiệu > Tổng quan */}
+        <button
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
+            setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'introduction', subtab: 'overview' } })), 80);
+          }}
+          className="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 hover:text-blue-400 transition-colors"
+          title="Hướng dẫn sử dụng"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+          </svg>
+        </button>
+
+        {/* Báo lỗi → Settings > Giới thiệu > Hướng dẫn báo lỗi */}
+        <button
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('nav:view', { detail: { view: 'settings' } }));
+            setTimeout(() => window.dispatchEvent(new CustomEvent('nav:settings', { detail: { tab: 'introduction', subtab: 'bugreport' } })), 80);
+          }}
+          className="w-9 h-9 flex items-center justify-center text-gray-400 hover:bg-gray-700 hover:text-red-400 transition-colors"
+          title="Báo lỗi"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
+            <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/>
+            <path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M6 17H2M18 13h4M17.47 9c1.93-.2 3.53-1.9 3.53-4M18 17h4"/>
+          </svg>
+        </button>
+
         {/* GitHub Star button */}
         <button
           onClick={() => ipc.shell?.openExternal(SUPPORT_GITHUB_URL)}

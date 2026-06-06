@@ -32,6 +32,9 @@ function today(): string { return new Date().toISOString().split('T')[0]; }
 
 function escapeCSV(val: any): string {
   const s = String(val ?? '');
+  // Excel tự chuyển số dài (SĐT, UID) thành scientific notation → ép giữ dạng text
+  if (/^\d+$/.test(s) && s.length >= 5)
+    return '="' + s + '"';
   if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r'))
     return '"' + s.replace(/"/g, '""') + '"';
   return s;

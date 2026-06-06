@@ -3673,14 +3673,23 @@ function SingleImageInGroup({ msg, onView, isSelecting: isSelectingProp, isSelec
       </div>
     );
   }
+  const handleClick = (e: React.MouseEvent) => {
+    if (isSelectingProp) {
+      e.stopPropagation();
+      onToggleSelect?.(msg.msg_id);
+    } else {
+      onView(viewUrl);
+    }
+  };
+
   return (
-    <div className={`relative flex-1 min-w-0 group/singleimg${isSelectingProp ? ' cursor-pointer' : ''}${isSelected ? ' ring-2 ring-blue-500' : ''}`}
-      onClick={isSelectingProp ? (e) => { e.stopPropagation(); onToggleSelect?.(msg.msg_id); } : undefined}
+    <div className={`relative flex-1 min-w-0 group/singleimg cursor-pointer${isSelected ? ' ring-2 ring-blue-500' : ''}`}
+      onClick={handleClick}
     >
       <img
         src={displayUrl}
         alt=""
-        className={`h-40 w-full object-cover transition-opacity bg-gray-700/30${isSelectingProp ? '' : ' cursor-pointer hover:opacity-90'}`}
+        className={`h-40 w-full object-cover transition-opacity bg-gray-700/30${isSelectingProp ? '' : ' hover:opacity-90'}`}
         onError={handleImgError}
       />
       {/* Selection overlay */}

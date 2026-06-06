@@ -119,8 +119,6 @@ function normalizeForAI(raw: any, platform: string) {
     image = raw.image?.src || raw.images?.[0]?.src || raw.featured_image || '';
   } else if (platform === 'sapo') {
     image = raw.image?.src || raw.images?.[0]?.src || '';
-  } else if (platform === 'ipos') {
-    image = raw.image_url || raw.image || raw.thumbnail || '';
   } else if (platform === 'nhanh') {
     image = raw.images?.avatar || raw.image || raw.imageUrl || raw.smallImage
       || (typeof raw.images?.[0] === 'string' ? raw.images[0] : '') || '';
@@ -245,7 +243,7 @@ export default function AIAssistantDetailPage({ assistantId, onBack }: Props) {
     try {
       const res = await ipc.integration?.list();
       if (res?.success) {
-        const posTypes = ['kiotviet', 'haravan', 'sapo', 'ipos', 'nhanh', 'pancake'];
+        const posTypes = ['kiotviet', 'haravan', 'sapo', 'nhanh', 'pancake'];
         setPosIntegrations(
           (res.integrations || []).filter((i: any) => posTypes.includes(i.type) && i.enabled)
         );

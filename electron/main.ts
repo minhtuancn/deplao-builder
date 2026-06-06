@@ -633,7 +633,11 @@ app.whenReady().then(async () => {
   // Auto-reconnect Facebook accounts
   setTimeout(() => reconnectAllFBAccounts(), 4000);
   // Auto-connect remote workspaces with autoConnect=true (after delay for DB + initial workspace switch)
-  setTimeout(() => HttpConnectionManager.getInstance().connectAutoWorkspaces(), 5000);
+  setTimeout(() => {
+    HttpConnectionManager.getInstance().connectAutoWorkspaces();
+    // Start periodic health check to detect and reconnect dead connections
+    HttpConnectionManager.getInstance().startHealthCheck(60_000);
+  }, 5000);
   // Auto-start relay server if configured on active local workspace
   setTimeout(() => {
     try {

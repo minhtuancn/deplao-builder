@@ -37,7 +37,6 @@ export type NodeType =
   | 'kiotviet.lookupCustomer' | 'kiotviet.lookupOrder' | 'kiotviet.createOrder' | 'kiotviet.lookupProduct'
   | 'haravan.lookupCustomer' | 'haravan.lookupOrder' | 'haravan.createOrder' | 'haravan.lookupProduct'
   | 'sapo.lookupCustomer'    | 'sapo.lookupOrder'    | 'sapo.createOrder'    | 'sapo.lookupProduct'
-  | 'ipos.lookupCustomer'    | 'ipos.lookupOrder'    | 'ipos.createOrder'    | 'ipos.lookupProduct'
   | 'nhanh.lookupCustomer'   | 'nhanh.lookupOrder'   | 'nhanh.createOrder'   | 'nhanh.lookupProduct'
   | 'pancake.lookupCustomer' | 'pancake.lookupOrder' | 'pancake.createOrder' | 'pancake.lookupProduct'
   | 'payment.getTransactions'
@@ -1589,29 +1588,6 @@ class WorkflowEngineService {
       }
       case 'sapo.lookupProduct': {
         const result = await IntegrationRegistry.executeActionByType('sapo', 'lookupProduct', {
-          keyword: cfg.keyword, limit: Number(cfg.limit || 10),
-        });
-        return { products: result.products || [], found: result.found };
-      }
-
-      // ── P0: iPOS ─────────────────────────────────────────────────────────
-      case 'ipos.lookupCustomer': {
-        const result = await IntegrationRegistry.executeActionByType('ipos', 'lookupCustomer', { phone: cfg.phone });
-        return { customers: result.customers || [], found: result.found, firstCustomer: result.firstCustomer || null };
-      }
-      case 'ipos.lookupOrder': {
-        const result = await IntegrationRegistry.executeActionByType('ipos', 'lookupOrder', { phone: cfg.phone, orderId: cfg.orderId });
-        const orders: any[] = result.orders || (result.order ? [result.order] : []);
-        return { orders, order: result.order || orders[0] || null, found: orders.length > 0 };
-      }
-      case 'ipos.createOrder': {
-        let orderObj: any = {};
-        try { orderObj = typeof cfg.order === 'string' ? JSON.parse(cfg.order) : cfg.order; } catch {}
-        const result = await IntegrationRegistry.executeActionByType('ipos', 'createOrder', { order: orderObj });
-        return { order: result.order || result, success: true };
-      }
-      case 'ipos.lookupProduct': {
-        const result = await IntegrationRegistry.executeActionByType('ipos', 'lookupProduct', {
           keyword: cfg.keyword, limit: Number(cfg.limit || 10),
         });
         return { products: result.products || [], found: result.found };
