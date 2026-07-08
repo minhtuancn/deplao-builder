@@ -126,6 +126,8 @@ class EventBroadcaster {
         if (this.window && !this.window.isDestroyed()) {
             this.window.webContents.send(channel, data);
         }
+        // Bridge to web clients
+        EventBroadcaster.broadcastToWeb(channel, data, data?.zaloId);
     }
 
     /**
@@ -1335,19 +1337,19 @@ class EventBroadcaster {
     }
 
     /**
-     * Broadcast QR code update
+     * Bridge event to Socket.IO web clients (per workspace room)
+     * Called from existing broadcast methods to push realtime events to web UI.
      */
-    public static broadcastQRUpdate(tempId: string, qrDataUrl: string, status: string): void {
-        this.send('qr:update', { tempId, qrDataUrl, status });
-    }
-
-    /**
-     * Broadcast listener dead (max retries exhausted or fatal token error)
-     * → renderer hiển thị cảnh báo và nút reconnect thủ công
-     */
-    public static broadcastListenerDead(zaloId: string, reason: string): void {
-        Logger.warn(`[EventBroadcaster] broadcastListenerDead: ${zaloId} reason=${reason}`);
-        this.send('event:listenerDead', { zaloId, reason });
+    public static broadcastToWeb(event: string, data: any, workspaceId?: string): void {
+        try {
+            const WebServer = require('../web/WebServer').default;
+            const io = WebServer.getIO();
+            if (!io) return;
+            const wsId = workspaceId || data?.zaloId || data?.workspaceId || 'default';
+            io.to(`ws:${wsId}`).emit(event, data);
+        } catch {
+            // WebServer not started - silent fail
+        }
     }
 }
 
