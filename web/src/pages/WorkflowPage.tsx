@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/toastStore';
+import { useSocketRefresh } from '../lib/useSocket';
 import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Workflow {
@@ -54,6 +55,11 @@ export default function WorkflowPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Auto-refresh on broadcast events
+  useSocketRefresh('workflow:executed', useCallback(() => fetchData(), []));
+  useSocketRefresh('workflow:statusChanged', useCallback(() => fetchData(), []));
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), []));
 
   const toggle = async (id: string) => {
     try {

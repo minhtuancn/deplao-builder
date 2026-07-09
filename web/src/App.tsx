@@ -5,10 +5,13 @@ import CrmPage from './pages/CrmPage';
 import ErpPage from './pages/ErpPage';
 import WorkflowPage from './pages/WorkflowPage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import ActivityPage from './pages/ActivityPage';
+import SettingsPage from './pages/SettingsPage';
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
 import ToastContainer from './components/ToastContainer';
 import ProtectedRoute from './components/ProtectedRoute';
+import SocketNotifier from './components/SocketNotifier';
 import { useAuthStore } from './store/authStore';
 
 export default function App() {
@@ -16,6 +19,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <SocketNotifier />
       <ToastContainer />
       <Routes>
         {/* Public routes */}
@@ -70,6 +74,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/activity"
+          element={
+            <ProtectedRoute>
+              <ActivityPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

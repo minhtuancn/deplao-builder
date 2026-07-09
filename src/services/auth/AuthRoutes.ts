@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import AuthService from './AuthService';
 import PostgresPool from '../db/PostgresPool';
+import authMiddleware from './authMiddleware';
 
 export const AuthRoutes = Router();
 
@@ -47,4 +48,34 @@ AuthRoutes.post('/register', async (req, res) => {
   const token = AuthService.signToken({ userId: user.id, role: user.role });
   await pg.query('INSERT INTO app_sessions(token, user_id, expires_at, created_at) VALUES($1,$2,$3,$4)', [token, user.id, Date.now() + 7 * 864e5, now]);
   res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role, displayName: user.display_name || username } });
+});
+
+// Change password (requires auth)
+AuthRoutes.put('/change-password', authMiddleware, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword) return res.status(400).json({ success: false, error: 'Missing fields' });
+  if (newPassword.length < 6) return res.status(400).json({ success: false, error: 'Mật khẩu mới phải có ít nhất 6 ký tự' });
+  const pg = PostgresPool.getInstance();
+  if (!pg.isEnabled()) return res.status(503).json({ success: false, error: 'PostgreSQL not configured' });
+  const userPayload = (req as any).user;
+  if (!userPayload?.userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+  try {
+    const rows = await pg.query('SELECT id, password_hash FROM app_users WHERE id = $1 AND is_active = TRUE', [userPayload.userId]);
+    const user = rows[0];
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    const valid = await AuthService.verifyPassword(oldPassword, user.password_hash);
+    if (!valid) return res.status(403).json({ success: false, error: 'Mật khẩu cũ không đúng' });
+    const hash = await AuthService.hashPassword(newPassword);
+    await pg.query('UPDATE app_users SET password_hash = $1, updated_at = $2 WHERE id = $3', [hash, Date.now(), user.id]);
+    // Log the change
+    try {
+      await pg.query(
+        'INSERT INTO audit_log(user_id, action, entity_type, entity_id, meta, created_at) VALUES($1,$2,$3,$4,$5,$6)',
+        [user.id, 'password.change', 'user', String(user.id), JSON.stringify({}), Date.now()]
+      );
+    } catch {}
+    res.json({ success: true, message: 'Mật khẩu đã được thay đổi' });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });

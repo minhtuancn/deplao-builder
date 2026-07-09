@@ -11,9 +11,11 @@ import { CRMWebRoutes } from '../crm/CRMWebRoutes';
 import { ErpWebRoutes } from '../erp/ErpWebRoutes';
 import { WorkflowWebRoutes } from '../workflow/WorkflowWebRoutes';
 import { AnalyticsWebRoutes } from '../analytics/AnalyticsWebRoutes';
+import { ActivityWebRoutes } from '../activity/ActivityWebRoutes';
 import authMiddleware from '../auth/authMiddleware';
 import AuthService from '../auth/AuthService';
 import DatabaseService from '../database/DatabaseService';
+import PostgresPool from '../db/PostgresPool';
 
 // Morgan log format — use 'dev' for development, 'combined' for production
 const LOG_FORMAT = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
@@ -122,6 +124,23 @@ class WebServer {
     app.use('/api/erp', apiLimiter, authMiddleware, ErpWebRoutes);
     app.use('/api/workflow', apiLimiter, authMiddleware, WorkflowWebRoutes);
     app.use('/api/analytics', apiLimiter, authMiddleware, AnalyticsWebRoutes);
+    app.use('/api/activity', apiLimiter, authMiddleware, ActivityWebRoutes);
+
+    // User info endpoint (change password at auth routes)
+    app.get('/api/user/profile', authMiddleware, async (req, res) => {
+      const payload = (req as any).user;
+      if (!payload?.userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+      try {
+        const pg = PostgresPool.getInstance();
+        if (!pg.isEnabled()) return res.json({ success: true, user: { id: payload.userId, role: payload.role } });
+        const rows = await pg.query('SELECT id, username, display_name, role, created_at FROM app_users WHERE id = $1', [payload.userId]);
+        const user = rows[0];
+        if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+        res.json({ success: true, user });
+      } catch (e: any) {
+        res.status(500).json({ success: false, error: e.message });
+      }
+    });
 
     // Serve built SPA (production) — dist-web/ is at project root
     // Try multiple resolutions: compiled (dist-electron/...) or source (src/...)

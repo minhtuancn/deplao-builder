@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
-import { getSocket } from '../lib/socket';
+import { useSocketStore } from '../store/socketStore';
 
 interface DashboardStats {
   totalMessages?: number;
@@ -43,9 +43,9 @@ export default function DashboardPage() {
     fetchData();
 
     // Real-time updates via Socket.IO
-    const socket = getSocket();
-    const handler = (payload: any) => {
-      // Refresh stats when we get an update
+    const socket = useSocketStore.getState().socket;
+    if (!socket) return;
+    const handler = () => {
       api.get(`/analytics/dashboard?zaloId=${ZALO_ID}`).then(setStats).catch(() => {});
     };
     socket.on('stats:update', handler);

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { disconnectSocket } from '../lib/socket';
+import { useSocketStore } from './socketStore';
 
 interface User {
   id: string;
@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
     }
-    disconnectSocket();
+    useSocketStore.getState().disconnect();
     localStorage.removeItem('deplao_token');
     localStorage.removeItem('deplao_user');
     set({ token: null, user: null });

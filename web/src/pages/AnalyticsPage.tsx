@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
+import { useSocketRefresh } from '../lib/useSocket';
 
 interface DashboardSummary {
   totalMessages?: number;
@@ -30,12 +31,13 @@ export default function AnalyticsPage() {
 
   const ZALO_ID = 'default';
 
-  const fetchData = async (d: number) => {
+  const fetchData = useCallback(async (d?: number) => {
+    const period = d ?? days;
     setLoading(true);
     try {
       const [s, v, cc] = await Promise.all([
         api.get(`/analytics/dashboard?zaloId=${ZALO_ID}`),
-        api.get(`/analytics/message-volume?zaloId=${ZALO_ID}&days=${d}`),
+        api.get(`/analytics/message-volume?zaloId=${ZALO_ID}&days=${period}`),
         api.get(`/analytics/campaign-comparison?zaloId=${ZALO_ID}`).catch(() => ({ campaigns: [] })),
       ]);
       setSummary(s);
@@ -46,9 +48,13 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [days]);
 
-  useEffect(() => { fetchData(days); }, [days]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Auto-refresh on relevant events
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), [fetchData]));
+  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), [fetchData]));
 
   const maxVol = Math.max(...volume.map((v) => v.count), 1);
   const maxCmp = Math.max(...campaignCompare.map((c) => c.sent), 1);
@@ -70,6 +76,13 @@ export default function AnalyticsPage() {
                 {n} ngày
               </button>
             ))}
+            <button
+              onClick={() => fetchData()}
+              className="ml-2 text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-lg transition"
+              title="Làm mới"
+            >
+              🔄
+            </button>
           </div>
         </div>
 
@@ -102,7 +115,7 @@ export default function AnalyticsPage() {
 
             {/* Message volume bar chart */}
             <div className="bg-gray-800 p-5 rounded-xl border border-gray-700">
-              <h2 className="font-semibold mb-4">Lượng tin nhắn</h2>
+              <h2 className="font-semibold mb-4">📊 Lượng tin nhắn ({days} ngày)</h2>
               {volume.length === 0 ? (
                 <p className="text-gray-500 text-sm">Chưa có dữ liệu</p>
               ) : (
@@ -117,7 +130,7 @@ export default function AnalyticsPage() {
                         <div
                           className="w-full bg-gradient-to-t from-blue-500 to-cyan-400 rounded-t transition-all duration-300 hover:opacity-80 cursor-pointer"
                           style={{ height: `${Math.max(pct, 2)}%` }}
-                          title={`${v.date}: ${v.count}`}
+                          title={`${v.date}: ${v.count} tin nhắn`}
                         />
                         <div className="text-[10px] text-gray-500 -rotate-45 origin-left whitespace-nowrap mt-1">
                           {v.date?.slice(5) || ''}
@@ -132,13 +145,13 @@ export default function AnalyticsPage() {
             {/* Campaign comparison */}
             {campaignCompare.length > 0 && (
               <div className="bg-gray-800 p-5 rounded-xl border border-gray-700">
-                <h2 className="font-semibold mb-4">So sánh chiến dịch</h2>
+                <h2 className="font-semibold mb-4">📬 So sánh chiến dịch</h2>
                 <div className="space-y-3">
                   {campaignCompare.map((c, i) => (
                     <div key={i}>
                       <div className="flex justify-between text-sm mb-1">
                         <span>{c.name}</span>
-                        <span className="text-gray-400">{c.sent} / {c.delivered} đã nhận</span>
+                        <span className="text-gray-400">{c.sent} gửi / {c.delivered} nhận</span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
                         <div
@@ -152,7 +165,7 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* AI Usage placeholder */}
+            {/* AI Usage */}
             <div className="bg-gray-800 p-5 rounded-xl border border-gray-700">
               <h2 className="font-semibold mb-2">🤖 Sử dụng AI</h2>
               <p className="text-gray-400 text-sm">

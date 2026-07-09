@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/toastStore';
+import { useSocketRefresh } from '../lib/useSocket';
 import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Campaign {
@@ -43,6 +44,10 @@ export default function CrmPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Auto-refresh on broadcast events
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), []));
+  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), []));
 
   const createCampaign = async (e: React.FormEvent) => {
     e.preventDefault();

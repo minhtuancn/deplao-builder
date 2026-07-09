@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/toastStore';
+import { useSocketRefresh } from '../lib/useSocket';
 import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Task {
@@ -45,6 +46,10 @@ export default function ErpPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Auto-refresh on broadcast events
+  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), []));
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), []));
 
   const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
