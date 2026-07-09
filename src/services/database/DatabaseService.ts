@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { app, safeStorage } from 'electron';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import Logger from '../../utils/Logger';
 import BetterSqlite3 from 'better-sqlite3';
 import type { Account, Message, Contact, CRMNote, CRMCampaign, CRMCampaignContact, CRMSendLog, CRMCampaignStatus, CRMContactStatus } from '../../models';
@@ -62,7 +62,7 @@ class DatabaseService {
 
     public async initialize(): Promise<void> {
         try {
-            const userDataPath = app.getPath('userData');
+            const userDataPath = PlatformConfig.getDataDir();
             Logger.log(`[DatabaseService] userData path: ${userDataPath}`);
 
             // ─── Workspace-aware DB path resolution ─────────────────────
@@ -2253,9 +2253,7 @@ class DatabaseService {
         const normalizedPhone = this.normalizeVietnamPhone(account.phone || '');
         let encryptedCookies = account.cookies;
         try {
-            if (safeStorage.isEncryptionAvailable()) {
-                encryptedCookies = safeStorage.encryptString(account.cookies).toString('base64');
-            }
+            encryptedCookies = PlatformConfig.encrypt(account.cookies);
         } catch {}
 
         const isBusiness = account.is_business ?? 0;
@@ -2507,12 +2505,10 @@ class DatabaseService {
         if (trimmed.startsWith('[') || trimmed.startsWith('{')) return encrypted;
 
         try {
-            if (safeStorage.isEncryptionAvailable()) {
-                const decrypted = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
-                // Sanity check: result must be parseable JSON
-                JSON.parse(decrypted);
-                return decrypted;
-            }
+            const decrypted = PlatformConfig.decrypt(encrypted);
+            // Sanity check: result must be parseable JSON
+            JSON.parse(decrypted);
+            return decrypted;
         } catch (err: any) {
             Logger.warn(`[DatabaseService] decryptCookies failed - cookies may be encrypted by a different app instance (${err.message}). Account will need to re-login.`);
         }
