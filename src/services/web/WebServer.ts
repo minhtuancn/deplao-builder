@@ -99,11 +99,13 @@ class WebServer {
     });
 
     // Serve media files from local storage
+    // Uses dynamic require() because FileStorageService depends on Electron's `app`
+    // — static import would fail in non-Electron contexts (standalone web server).
     app.get('/api/media/:zaloId/:filename(*)', (req, res) => {
       try {
         const { zaloId, filename } = req.params;
-        const FileStorageService = require('../file/FileStorageService').default;
-        const baseDir = FileStorageService.getBaseDir();
+        const FileStorage: { getBaseDir: () => string } = require('../file/FileStorageService').default;
+        const baseDir = FileStorage.getBaseDir();
         const mediaPath = path.join(baseDir, 'media', zaloId, filename);
         const safePath = path.resolve(mediaPath);
         if (!fs.existsSync(safePath)) {
@@ -201,8 +203,9 @@ class WebServer {
         (socket as any).authenticated = true;
         next();
       } catch {
+        // Invalid token → connect as unauthenticated (limited scope for public events)
         (socket as any).authenticated = false;
-        next(new Error('Invalid token'));
+        next();
       }
     });
 

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useSocketStore } from '../store/socketStore';
+import { useWorkspaceStore } from '../store/workspaceStore';
 import { useSocketEvent } from '../lib/useSocket';
 import { toast } from '../store/toastStore';
 
@@ -7,19 +8,15 @@ import { toast } from '../store/toastStore';
  * Global Socket.IO event → Toast notification bridge.
  *
  * Listens for broadcast events and shows non-intrusive toasts.
- * Auto-joins workspace rooms when connected.
+ * Room join/leave is handled by Nav on workspace selection change.
  * Manages socket lifecycle: connects when token is available, disconnects on logout.
  */
 export default function SocketNotifier() {
   const connected = useSocketStore((s) => s.connected);
-  const socket = useSocketStore((s) => s.socket);
   const connect = useSocketStore((s) => s.connect);
   const disconnect = useSocketStore((s) => s.disconnect);
-  const joinWorkspace = useSocketStore((s) => s.joinWorkspace);
+  const selectedId = useWorkspaceStore((s) => s.selectedId);
   const token = localStorage.getItem('deplao_token');
-
-  // Track which workspaces we've joined
-  const joinedRef = useRef<Set<string>>(new Set());
 
   // Auto-connect when token is present
   useEffect(() => {
@@ -30,17 +27,6 @@ export default function SocketNotifier() {
     }
     return () => disconnect();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-join default workspace when connected
-  useEffect(() => {
-    if (connected && socket && !joinedRef.current.has('default')) {
-      joinWorkspace('default');
-      joinedRef.current.add('default');
-    }
-    if (!connected) {
-      joinedRef.current.clear();
-    }
-  }, [connected, socket, joinWorkspace]);
 
   // ─── Notification handlers ──────────────────────────────────────────
 

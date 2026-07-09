@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useSocketStore } from '../store/socketStore';
+import { useWorkspaceStore } from '../store/workspaceStore';
 
 interface DashboardStats {
   totalMessages?: number;
@@ -16,10 +17,10 @@ interface VolumePoint {
   count: number;
 }
 
-const ZALO_ID = 'default';
 const MAX_BARS = 14;
 
 export default function DashboardPage() {
+  const zaloId = useWorkspaceStore((s) => s.selectedId);
   const [stats, setStats] = useState<DashboardStats>({});
   const [volume, setVolume] = useState<VolumePoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,8 +28,8 @@ export default function DashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       const [dash, vol] = await Promise.all([
-        api.get(`/analytics/dashboard?zaloId=${ZALO_ID}`),
-        api.get(`/analytics/message-volume?zaloId=${ZALO_ID}&days=${MAX_BARS}`),
+        api.get(`/analytics/dashboard?zaloId=${zaloId}`),
+        api.get(`/analytics/message-volume?zaloId=${zaloId}&days=${MAX_BARS}`),
       ]);
       setStats(dash);
       setVolume(vol.data || vol || []);
@@ -37,7 +38,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [zaloId]);
 
   useEffect(() => {
     fetchData();
@@ -46,7 +47,7 @@ export default function DashboardPage() {
     const socket = useSocketStore.getState().socket;
     if (!socket) return;
     const handler = () => {
-      api.get(`/analytics/dashboard?zaloId=${ZALO_ID}`).then(setStats).catch(() => {});
+      api.get(`/analytics/dashboard?zaloId=${zaloId}`).then(setStats).catch(() => {});
     };
     socket.on('stats:update', handler);
     socket.on('message:new', handler);

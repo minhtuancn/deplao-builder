@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/toastStore';
 import { useSocketRefresh } from '../lib/useSocket';
+import { useWorkspaceStore } from '../store/workspaceStore';
 import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Task {
@@ -19,6 +20,7 @@ interface Note {
 }
 
 export default function ErpPage() {
+  const zaloId = useWorkspaceStore((s) => s.selectedId);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [newTask, setNewTask] = useState('');
@@ -34,28 +36,26 @@ export default function ErpPage() {
     onConfirm: () => {},
   });
 
-  const ZALO_ID = 'default';
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [t, n] = await Promise.all([
-      api.get(`/erp/tasks?zaloId=${ZALO_ID}`),
-      api.get(`/erp/notes?zaloId=${ZALO_ID}`),
+      api.get(`/erp/tasks?zaloId=${zaloId}`),
+      api.get(`/erp/notes?zaloId=${zaloId}`),
     ]);
     setTasks(t.tasks || []);
     setNotes(n.notes || []);
-  };
+  }, [zaloId]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Auto-refresh on broadcast events
-  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), []));
-  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), []));
+  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), [fetchData]));
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), [fetchData]));
 
   const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.trim()) return;
     try {
-      await api.post('/erp/task', { zaloId: ZALO_ID, title: newTask.trim() });
+      await api.post('/erp/task', { zaloId, title: newTask.trim() });
       setNewTask('');
       toast.success('Thêm công việc thành công');
       await fetchData();
@@ -66,7 +66,7 @@ export default function ErpPage() {
 
   const toggleTask = async (id: string, completed: boolean) => {
     try {
-      await api.put(`/erp/task/${id}`, { zaloId: ZALO_ID, completed: !completed });
+      await api.put(`/erp/task/${id}`, { zaloId: zaloId, completed: !completed });
       toast.success(completed ? 'Đã đánh dấu chưa hoàn thành' : 'Đã hoàn thành công việc');
       await fetchData();
     } catch (err: any) {
@@ -76,7 +76,7 @@ export default function ErpPage() {
 
   const doDeleteTask = async (id: string) => {
     try {
-      await api.del(`/erp/task/${id}?zaloId=${ZALO_ID}`);
+      await api.del(`/erp/task/${id}?zaloId=${zaloId}`);
       toast.success('Đã xóa công việc');
       await fetchData();
     } catch (err: any) {
@@ -105,7 +105,7 @@ export default function ErpPage() {
     e.preventDefault();
     if (!noteTitle.trim()) return;
     try {
-      await api.post('/erp/note', { zaloId: ZALO_ID, title: noteTitle.trim(), content: noteContent.trim() });
+      await api.post('/erp/note', { zaloId: zaloId, title: noteTitle.trim(), content: noteContent.trim() });
       setNoteTitle('');
       setNoteContent('');
       setShowNoteForm(false);
@@ -118,7 +118,7 @@ export default function ErpPage() {
 
   const doDeleteNote = async (id: string) => {
     try {
-      await api.del(`/erp/note/${id}?zaloId=${ZALO_ID}`);
+      await api.del(`/erp/note/${id}?zaloId=${zaloId}`);
       toast.success('Đã xóa ghi chú');
       await fetchData();
     } catch (err: any) {

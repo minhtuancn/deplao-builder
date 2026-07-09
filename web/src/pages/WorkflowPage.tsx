@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/toastStore';
 import { useSocketRefresh } from '../lib/useSocket';
+import { useWorkspaceStore } from '../store/workspaceStore';
 import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Workflow {
@@ -26,6 +27,7 @@ interface Template {
 }
 
 export default function WorkflowPage() {
+  const zaloId = useWorkspaceStore((s) => s.selectedId);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -41,30 +43,28 @@ export default function WorkflowPage() {
     onConfirm: () => {},
   });
 
-  const ZALO_ID = 'default';
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [w, l, t] = await Promise.all([
-      api.get(`/workflow/list?zaloId=${ZALO_ID}`),
-      api.get(`/workflow/logs?zaloId=${ZALO_ID}&limit=20`),
-      api.get(`/workflow/templates?zaloId=${ZALO_ID}`).catch(() => ({ templates: [] })),
+      api.get(`/workflow/list?zaloId=${zaloId}`),
+      api.get(`/workflow/logs?zaloId=${zaloId}&limit=20`),
+      api.get(`/workflow/templates?zaloId=${zaloId}`).catch(() => ({ templates: [] })),
     ]);
     setWorkflows(w.workflows || []);
     setLogs(l.logs || []);
     setTemplates(t.templates || []);
-  };
+  }, [zaloId]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Auto-refresh on broadcast events
-  useSocketRefresh('workflow:executed', useCallback(() => fetchData(), []));
-  useSocketRefresh('workflow:statusChanged', useCallback(() => fetchData(), []));
-  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), []));
+  useSocketRefresh('workflow:executed', useCallback(() => fetchData(), [fetchData]));
+  useSocketRefresh('workflow:statusChanged', useCallback(() => fetchData(), [fetchData]));
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), [fetchData]));
 
   const toggle = async (id: string) => {
     try {
       const wf = workflows.find((w) => w.id === id);
-      await api.post('/workflow/toggle', { zaloId: ZALO_ID, workflowId: id });
+      await api.post('/workflow/toggle', { zaloId: zaloId, workflowId: id });
       toast.success(wf?.active ? 'Đã tắt workflow' : 'Đã bật workflow');
       await fetchData();
     } catch (err: any) {
@@ -74,7 +74,7 @@ export default function WorkflowPage() {
 
   const runWorkflow = async (id: string) => {
     try {
-      await api.post('/workflow/run', { zaloId: ZALO_ID, workflowId: id });
+      await api.post('/workflow/run', { zaloId: zaloId, workflowId: id });
       toast.success('Đã chạy workflow');
       await fetchData();
     } catch (err: any) {
@@ -84,7 +84,7 @@ export default function WorkflowPage() {
 
   const doDeleteWorkflow = async (id: string) => {
     try {
-      await api.del(`/workflow/${id}?zaloId=${ZALO_ID}`);
+      await api.del(`/workflow/${id}?zaloId=${zaloId}`);
       toast.success('Đã xóa workflow');
       await fetchData();
     } catch (err: any) {
@@ -115,7 +115,7 @@ export default function WorkflowPage() {
     setSaving(true);
     try {
       await api.post('/workflow/save', {
-        zaloId: ZALO_ID,
+        zaloId: zaloId,
         workflow: { name: newName.trim(), description: '', nodes: [], edges: [] },
         templateId: selectedTemplate || undefined,
       });

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { useSocketRefresh } from '../lib/useSocket';
+import { useWorkspaceStore } from '../store/workspaceStore';
 
 interface DashboardSummary {
   totalMessages?: number;
@@ -23,22 +24,21 @@ interface CampaignCompare {
 }
 
 export default function AnalyticsPage() {
+  const zaloId = useWorkspaceStore((s) => s.selectedId);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [volume, setVolume] = useState<VolumePoint[]>([]);
   const [days, setDays] = useState(7);
   const [campaignCompare, setCampaignCompare] = useState<CampaignCompare[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const ZALO_ID = 'default';
-
   const fetchData = useCallback(async (d?: number) => {
     const period = d ?? days;
     setLoading(true);
     try {
       const [s, v, cc] = await Promise.all([
-        api.get(`/analytics/dashboard?zaloId=${ZALO_ID}`),
-        api.get(`/analytics/message-volume?zaloId=${ZALO_ID}&days=${period}`),
-        api.get(`/analytics/campaign-comparison?zaloId=${ZALO_ID}`).catch(() => ({ campaigns: [] })),
+        api.get(`/analytics/dashboard?zaloId=${zaloId}`),
+        api.get(`/analytics/message-volume?zaloId=${zaloId}&days=${period}`),
+        api.get(`/analytics/campaign-comparison?zaloId=${zaloId}`).catch(() => ({ campaigns: [] })),
       ]);
       setSummary(s);
       setVolume(v.data || v || []);

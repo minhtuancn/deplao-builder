@@ -12,6 +12,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
     "build:web": "cd web && npm ci --legacy-peer-deps && npm run build",
+    "db:seed": "node scripts/seed-admin.js",
     "production": "npm run build:bridge-e2ee && tsc -p tsconfig.electron.prod.json && node scripts/strip-console.js && npm run build:renderer && npm run build:web && electron-builder --publish never"
   },
   "author": "babyvibe <babyvibe@users.noreply.github.com>",

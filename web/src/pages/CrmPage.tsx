@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/toastStore';
 import { useSocketRefresh } from '../lib/useSocket';
+import { useWorkspaceStore } from '../store/workspaceStore';
 import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Campaign {
@@ -18,6 +19,7 @@ interface CampaignStats {
 }
 
 export default function CrmPage() {
+  const zaloId = useWorkspaceStore((s) => s.selectedId);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<CampaignStats | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -32,22 +34,20 @@ export default function CrmPage() {
     onConfirm: () => {},
   });
 
-  const ZALO_ID = 'default';
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [camps, st] = await Promise.all([
-      api.get(`/crm/campaigns?zaloId=${ZALO_ID}`),
-      api.get(`/crm/stats?zaloId=${ZALO_ID}`),
+      api.get(`/crm/campaigns?zaloId=${zaloId}`),
+      api.get(`/crm/stats?zaloId=${zaloId}`),
     ]);
     setCampaigns(camps.campaigns || []);
     setStats(st);
-  };
+  }, [zaloId]);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Auto-refresh on broadcast events
-  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), []));
-  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), []));
+  useSocketRefresh('crm:campaignChanged', useCallback(() => fetchData(), [fetchData]));
+  useSocketRefresh('crm:noteChanged', useCallback(() => fetchData(), [fetchData]));
 
   const createCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +55,7 @@ export default function CrmPage() {
     setSaving(true);
     setError('');
     try {
-      await api.post('/crm/campaign', { zaloId: ZALO_ID, name: formName.trim() });
+      await api.post('/crm/campaign', { zaloId, name: formName.trim() });
       setFormName('');
       setShowForm(false);
       toast.success('Tạo chiến dịch thành công');
@@ -71,7 +71,7 @@ export default function CrmPage() {
   const toggleStatus = async (id: string, current: string) => {
     try {
       const newStatus = current === 'active' ? 'paused' : 'active';
-      await api.put(`/crm/campaign/${id}`, { zaloId: ZALO_ID, status: newStatus });
+      await api.put(`/crm/campaign/${id}`, { zaloId: zaloId, status: newStatus });
       toast.success(current === 'active' ? 'Đã tạm dừng chiến dịch' : 'Đã kích hoạt chiến dịch');
       await fetchData();
     } catch (err: any) {
@@ -81,7 +81,7 @@ export default function CrmPage() {
 
   const doDeleteCampaign = async (id: string) => {
     try {
-      await api.del(`/crm/campaign/${id}?zaloId=${ZALO_ID}`);
+      await api.del(`/crm/campaign/${id}?zaloId=${zaloId}`);
       toast.success('Đã xóa chiến dịch');
       await fetchData();
     } catch (err: any) {
