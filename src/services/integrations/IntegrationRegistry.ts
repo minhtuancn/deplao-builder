@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { app, safeStorage } from 'electron';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import { v4 as uuidv4 } from 'uuid';
 import Logger from '../../utils/Logger';
 import DatabaseService from '../database/DatabaseService';
@@ -44,9 +44,7 @@ function createAdapter(config: IntegrationConfig): IntegrationAdapter {
 
 function encryptCredentials(creds: Record<string, string>): string {
   try {
-    if (!safeStorage.isEncryptionAvailable()) return JSON.stringify(creds);
-    const encrypted = safeStorage.encryptString(JSON.stringify(creds));
-    return encrypted.toString('base64');
+    return PlatformConfig.encrypt(JSON.stringify(creds));
   } catch {
     return JSON.stringify(creds);
   }
@@ -54,14 +52,8 @@ function encryptCredentials(creds: Record<string, string>): string {
 
 function decryptCredentials(raw: string): Record<string, string> {
   try {
-    // Try safeStorage first
-    if (safeStorage.isEncryptionAvailable()) {
-      try {
-        const buf = Buffer.from(raw, 'base64');
-        return JSON.parse(safeStorage.decryptString(buf));
-      } catch { /* fall through to JSON parse */ }
-    }
-    return JSON.parse(raw);
+    const decrypted = PlatformConfig.decrypt(raw);
+    return JSON.parse(decrypted);
   } catch {
     return {};
   }

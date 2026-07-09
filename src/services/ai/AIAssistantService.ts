@@ -7,7 +7,7 @@
  */
 
 import axios from 'axios';
-import { safeStorage } from 'electron';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import { v4 as uuidv4 } from 'uuid';
 import DatabaseService from '../database/DatabaseService';
 import IntegrationRegistry from '../integrations/IntegrationRegistry';
@@ -19,22 +19,19 @@ import type { AIAssistant, AIAssistantFile, ChatMessage, AIPlatform } from '../.
 function encryptApiKey(key: string): string {
   if (!key) return '';
   try {
-    if (safeStorage.isEncryptionAvailable()) {
-      return 'enc:' + safeStorage.encryptString(key).toString('base64');
-    }
-  } catch {}
-  return key;
+    return PlatformConfig.encrypt(key);
+  } catch {
+    return key;
+  }
 }
 
 function decryptApiKey(raw: string): string {
   if (!raw) return '';
-  if (raw.startsWith('enc:')) {
-    try {
-      const buf = Buffer.from(raw.slice(4), 'base64');
-      return safeStorage.decryptString(buf);
-    } catch {}
+  try {
+    return PlatformConfig.decrypt(raw);
+  } catch {
+    return raw;
   }
-  return raw;
 }
 
 // ─── Platform URL helpers ─────────────────────────────────────────────────────

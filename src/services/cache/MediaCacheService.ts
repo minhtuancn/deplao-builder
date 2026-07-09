@@ -13,6 +13,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import Logger from '../../utils/Logger';
 import FileStorageService from '../file/FileStorageService';
 
@@ -100,8 +101,8 @@ class MediaCacheService {
       if (mediaRelPath) {
         let mediaBaseDir = FileStorageService.getBaseDir?.() || '';
         if (!mediaBaseDir) {
-          const { app } = require('electron');
-          mediaBaseDir = path.join(app.getPath('userData'), 'media');
+          const { PlatformConfig } = require('../../utils/PlatformConfig');
+          mediaBaseDir = path.join(PlatformConfig.getDataDir(), 'media');
         }
         const structuredPath = path.resolve(mediaBaseDir, mediaRelPath);
         if (fs.existsSync(structuredPath)) {
@@ -234,8 +235,7 @@ class MediaCacheService {
         if (mediaRelPath) {
           let mediaBaseDir = FileStorageService.getBaseDir?.() || '';
           if (!mediaBaseDir) {
-            const { app } = require('electron');
-            mediaBaseDir = path.join(app.getPath('userData'), 'media');
+            mediaBaseDir = path.join(PlatformConfig.getDataDir(), 'media');
           }
           const structuredPath = path.resolve(mediaBaseDir, mediaRelPath);
           const structuredDir = path.dirname(structuredPath);
@@ -375,10 +375,9 @@ class MediaCacheService {
 
   private getDefaultCacheDir(): string {
     try {
-      const { app } = require('electron');
-      return path.join(app.getPath('cache'), 'media-cache');
+      return path.join(PlatformConfig.getCacheDir(), 'media-cache');
     } catch {
-      // Fallback khi không ở trong Electron (dev/test)
+      // Fallback
       return path.join(process.cwd(), '.cache', 'media');
     }
   }

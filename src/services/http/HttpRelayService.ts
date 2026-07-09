@@ -707,8 +707,9 @@ class HttpRelayService {
                             imei: realAuth.imei || '',
                             userAgent: realAuth.userAgent || realAuth.user_agent || '',
                         };
-                        const { ipcMain } = require('electron');
-                        const handlers: Map<string, Function> | undefined = (ipcMain as any)._invokeHandlers;
+                        let ipcMain: any = null;
+                        try { ipcMain = require('electron').ipcMain; } catch { /* web-only — no IPC */ }
+                        const handlers: Map<string, Function> | undefined = (ipcMain as any)?._invokeHandlers;
                         const loginHandler = handlers?.get('login:connect');
                         if (loginHandler) {
                             const result = await loginHandler(null, { auth: authPayload });
@@ -1035,9 +1036,10 @@ class HttpRelayService {
                 return result;
             }
 
-            // Fallback: ipcMain._invokeHandlers
-            const { ipcMain } = require('electron');
-            const internalHandlers: Map<string, Function> | undefined = (ipcMain as any)._invokeHandlers;
+            // Fallback: ipcMain._invokeHandlers (web-only: no Electron IPC)
+            let ipcMain: any = null;
+            try { ipcMain = require('electron').ipcMain; } catch { /* web-only — no IPC */ }
+            const internalHandlers: Map<string, Function> | undefined = (ipcMain as any)?._invokeHandlers;
             if (internalHandlers && internalHandlers.has(channel)) {
                 return await internalHandlers.get(channel)!(null, params);
             }

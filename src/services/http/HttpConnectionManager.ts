@@ -1,7 +1,7 @@
 import HttpClientService from './HttpClientService';
 import WorkspaceManager from '../../utils/WorkspaceManager';
 import Logger from '../../utils/Logger';
-import { BrowserWindow } from 'electron';
+// BrowserWindow removed — web-only mode (no Electron renderer)
 
 interface WorkspaceClient {
     workspaceId: string;

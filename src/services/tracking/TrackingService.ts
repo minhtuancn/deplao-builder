@@ -15,7 +15,7 @@ import DatabaseService from '../database/DatabaseService';
 import Logger from '../../utils/Logger';
 import * as path from 'path';
 import * as fs from 'fs';
-import { app } from 'electron';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 
@@ -82,7 +82,7 @@ class TrackingService {
     this.running = true;
 
     try {
-      this.cachePath = path.join(app.getPath('userData'), CACHE_FILENAME);
+      this.cachePath = path.join(PlatformConfig.getDataDir(), CACHE_FILENAME);
       this.loadCache();
 
       Logger.log(`[TrackingService] ✅ Khởi động - machineId=${this.cache?.machineId?.slice(0, 8)}... lastTracked=${this.cache?.lastTrackedDate || 'never'}`);

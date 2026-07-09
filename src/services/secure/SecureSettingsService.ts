@@ -1,32 +1,23 @@
 /**
  * SecureSettingsService.ts
- * Wrapper quanh electron.safeStorage để mã hóa data nhạy cảm trong SQLite.
- * Data được mã hóa bởi OS (Windows Credential Manager / macOS Keychain).
- * Chỉ app này trên đúng máy này mới giải mã được.
+ * Mã hóa data nhạy cảm trong SQLite dùng AES-256-GCM (PlatformConfig).
+ * Không phụ thuộc Electron safeStorage.
  */
-import { safeStorage } from 'electron';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import DatabaseService from '../database/DatabaseService';
 import Logger from '../../utils/Logger';
 
-const ENC_PREFIX = 'enc:';
-
 /**
- * Lưu value được mã hóa bởi safeStorage vào SQLite settings.
+ * Lưu value được mã hóa vào SQLite settings.
  */
 export function secureSet(key: string, value: string): void {
     if (!value && value !== '') {
         DatabaseService.getInstance().setSetting(key, '');
         return;
     }
-    if (!safeStorage.isEncryptionAvailable()) {
-        // Fallback: lưu plaintext với warning (hiếm gặp - OS không hỗ trợ keychain)
-        Logger.warn(`[SecureSettings] safeStorage unavailable - storing "${key}" as plaintext`);
-        DatabaseService.getInstance().setSetting(key, value);
-        return;
-    }
     try {
-        const encrypted = safeStorage.encryptString(value).toString('base64');
-        DatabaseService.getInstance().setSetting(key, `${ENC_PREFIX}${encrypted}`);
+        const encrypted = PlatformConfig.encrypt(value);
+        DatabaseService.getInstance().setSetting(key, encrypted);
     } catch (err: any) {
         Logger.error(`[SecureSettings] Encrypt failed for "${key}": ${err.message}`);
         // Fallback to plaintext rather than losing data
@@ -42,18 +33,12 @@ export function secureGet(key: string): string | null {
     const raw = DatabaseService.getInstance().getSetting(key);
     if (!raw) return null;
 
-    if (raw.startsWith(ENC_PREFIX)) {
-        try {
-            const buf = Buffer.from(raw.slice(ENC_PREFIX.length), 'base64');
-            return safeStorage.decryptString(buf);
-        } catch (err: any) {
-            Logger.warn(`[SecureSettings] Decrypt failed for "${key}" - may be from different machine: ${err.message}`);
-            return null;
-        }
+    try {
+        return PlatformConfig.decrypt(raw);
+    } catch (err: any) {
+        Logger.warn(`[SecureSettings] Decrypt failed for "${key}": ${err.message}`);
+        return null;
     }
-
-    // Plaintext cũ (chưa migrate) - trả về nguyên
-    return raw;
 }
 
 /**

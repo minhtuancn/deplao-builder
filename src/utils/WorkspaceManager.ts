@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { app } from 'electron';
+import { PlatformConfig } from './PlatformConfig';
 import Logger from './Logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ class WorkspaceManager {
     public initialize(): void {
         if (this.initialized) return;
 
-        this.userDataPath = app.getPath('userData');
+        this.userDataPath = PlatformConfig.getDataDir();
         this.configPath = path.join(this.userDataPath, CONFIG_FILENAME);
 
         if (fs.existsSync(this.configPath)) {
