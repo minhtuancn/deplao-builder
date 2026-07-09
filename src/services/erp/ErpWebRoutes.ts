@@ -21,6 +21,36 @@ ErpWebRoutes.get('/tasks/:id', (req, res) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
+// Simple task CRUD (used by web client)
+ErpWebRoutes.post('/task', (req, res) => {
+  try {
+    const { title } = req.body;
+    if (!title) return res.status(400).json({ success: false, error: 'title required' });
+    const task = ErpTaskService.getInstance().createTask({ title }, 'web');
+    res.json({ success: true, task });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+ErpWebRoutes.put('/task/:id', (req, res) => {
+  try {
+    const { completed } = req.body;
+    const task = ErpTaskService.getInstance().updateTask(
+      req.params.id,
+      { status: completed ? 'done' : 'todo' },
+      'web',
+    );
+    res.json({ success: true, task });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+ErpWebRoutes.delete('/task/:id', (req, res) => {
+  try {
+    ErpTaskService.getInstance().deleteTask(req.params.id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Full CRUD tasks
 ErpWebRoutes.post('/tasks/create', (req, res) => {
   try {
     const { input, reporterId } = req.body;
@@ -78,6 +108,23 @@ ErpWebRoutes.get('/notes/:id', (req, res) => {
     const note = ErpNoteService.getInstance().getNote(req.params.id);
     if (!note) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, note });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Simple note CRUD (used by web client)
+ErpWebRoutes.post('/note', (req, res) => {
+  try {
+    const { title, content, zaloId } = req.body;
+    const input = { title, content, zaloId: zaloId || 'default' };
+    const note = ErpNoteService.getInstance().createNote(input, 'web');
+    res.json({ success: true, note });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+ErpWebRoutes.delete('/note/:id', (req, res) => {
+  try {
+    ErpNoteService.getInstance().deleteNote(req.params.id);
+    res.json({ success: true });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
