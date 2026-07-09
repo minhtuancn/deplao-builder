@@ -1,8 +1,10 @@
-import express, { Express } from 'express';
+import express, { Express, Request } from 'express';
 import { Server } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import * as path from 'path';
 import * as fs from 'fs';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 import { AuthRoutes } from '../auth/AuthRoutes';
 import { WorkspaceRoutes } from '../workspace/WorkspaceRoutes';
 import { CRMWebRoutes } from '../crm/CRMWebRoutes';
@@ -13,6 +15,15 @@ import authMiddleware from '../auth/authMiddleware';
 import AuthService from '../auth/AuthService';
 import DatabaseService from '../database/DatabaseService';
 
+// Morgan log format — use 'dev' for development, 'combined' for production
+const LOG_FORMAT = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
+
+// Skip logging health-check pings and static asset requests in tests
+function skipLogging(req: Request): boolean {
+  if (process.env.NODE_ENV === 'test') return true;
+  return req.path === '/api/health';
+}
+
 class WebServer {
   private static io: SocketIOServer | null = null;
 
@@ -21,26 +32,67 @@ class WebServer {
     app.use(express.json({ limit: '50mb' }));
     app.use(express.urlencoded({ extended: true }));
 
+    // --- Request logging ---
+    app.use(morgan(LOG_FORMAT, { skip: skipLogging }));
+
+    // --- Rate limiting ---
+    // Auth: stricter — 30 req/min per IP
+    const authLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 30,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { success: false, error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' },
+      skip: (req) => process.env.NODE_ENV === 'test',
+    });
+
+    // General API: 200 req/min per IP
+    const apiLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 200,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { success: false, error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' },
+      skip: (req) => process.env.NODE_ENV === 'test',
+    });
+
     // Health
     app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
-    // System status
+    // Enhanced system status
     app.get('/api/system/status', authMiddleware, (_req, res) => {
       try {
         const db = DatabaseService.getInstance();
         const accounts = db.getAccounts ? db.getAccounts() : [];
         const wsCount = accounts.length;
+        const memUsage = process.memoryUsage();
+        const io = WebServer.io;
+        const activeConnections = io?.engine?.clientsCount ?? 0;
         res.json({
           success: true,
           electron: typeof process.versions.electron !== 'undefined',
           node: process.version,
           platform: process.platform,
+          arch: process.arch,
           dbReady: true,
           workspaceCount: wsCount,
           uptime: process.uptime(),
+          memory: {
+            rss: Math.round(memUsage.rss / 1024 / 1024) + 'MB',
+            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
+            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+          },
+          webSocketConnections: activeConnections,
+          timestamp: new Date().toISOString(),
         });
       } catch (e: any) {
-        res.json({ success: true, electron: false, node: process.version });
+        res.json({
+          success: true,
+          electron: false,
+          node: process.version,
+          arch: process.arch,
+          uptime: process.uptime(),
+        });
       }
     });
 
@@ -61,15 +113,15 @@ class WebServer {
       }
     });
 
-    // Public
-    app.use('/api/auth', AuthRoutes);
+    // Public (with stricter rate limit)
+    app.use('/api/auth', authLimiter, AuthRoutes);
 
-    // Protected
-    app.use('/api/workspace', authMiddleware, WorkspaceRoutes);
-    app.use('/api/crm', authMiddleware, CRMWebRoutes);
-    app.use('/api/erp', authMiddleware, ErpWebRoutes);
-    app.use('/api/workflow', authMiddleware, WorkflowWebRoutes);
-    app.use('/api/analytics', authMiddleware, AnalyticsWebRoutes);
+    // Protected (with general rate limit)
+    app.use('/api/workspace', apiLimiter, authMiddleware, WorkspaceRoutes);
+    app.use('/api/crm', apiLimiter, authMiddleware, CRMWebRoutes);
+    app.use('/api/erp', apiLimiter, authMiddleware, ErpWebRoutes);
+    app.use('/api/workflow', apiLimiter, authMiddleware, WorkflowWebRoutes);
+    app.use('/api/analytics', apiLimiter, authMiddleware, AnalyticsWebRoutes);
 
     // Serve built SPA (production) — dist-web/ is at project root
     const distPath = path.join(__dirname, '../../dist-web');

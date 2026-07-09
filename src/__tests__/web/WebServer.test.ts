@@ -82,6 +82,8 @@ jest.mock('../../services/database/DatabaseService', () => ({
 
 import express from 'express';
 import request from 'supertest';
+import WebServer from '../../services/web/WebServer';
+import AuthService from '../../services/auth/AuthService';
 import { CRMWebRoutes } from '../../services/crm/CRMWebRoutes';
 import { ErpWebRoutes } from '../../services/erp/ErpWebRoutes';
 import { WorkflowWebRoutes } from '../../services/workflow/WorkflowWebRoutes';
@@ -118,6 +120,38 @@ describe('WebServer Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       expect(res.body.ts).toBeDefined();
+    });
+  });
+
+  describe('System Status', () => {
+    let statusApp: express.Express;
+    let authToken: string;
+
+    beforeAll(() => {
+      statusApp = WebServer.createExpressApp();
+      authToken = AuthService.signToken({ userId: 1, role: 'admin' });
+    });
+
+    it('GET /api/system/status returns system info', async () => {
+      const res = await request(statusApp)
+        .get('/api/system/status')
+        .set('Authorization', `Bearer ${authToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.node).toBeDefined();
+      expect(res.body.platform).toBeDefined();
+      expect(res.body.uptime).toBeDefined();
+    });
+
+    it('GET /api/system/status includes memory info', async () => {
+      const res = await request(statusApp)
+        .get('/api/system/status')
+        .set('Authorization', `Bearer ${authToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.memory).toBeDefined();
+      expect(res.body.memory.rss).toMatch(/MB$/);
+      expect(res.body.memory.heapUsed).toMatch(/MB$/);
+      expect(res.body.timestamp).toBeDefined();
     });
   });
 
