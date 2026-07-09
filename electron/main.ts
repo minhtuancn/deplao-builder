@@ -827,6 +827,9 @@ app.whenReady().then(async () => {
   registerErpHrmIpc();
   registerLockScreenIpc();
   registerLibraryIpc();
+  // Start web server if WEB_ENABLED=1
+  const { startWebIfEnabled } = require('./webStartup');
+  setTimeout(() => startWebIfEnabled(), 1000);
   // Auto-reconnect Facebook accounts - start ngay, không đợi 4s
   reconnectAllFBAccounts().catch(err => {
     console.error('[main] reconnectAllFBAccounts error:', err.message);
