@@ -16,6 +16,7 @@ import authMiddleware from '../auth/authMiddleware';
 import AuthService from '../auth/AuthService';
 import DatabaseService from '../database/DatabaseService';
 import PostgresPool from '../db/PostgresPool';
+import TelegramRoutes from '../telegram/TelegramWebRoutes';
 
 // Morgan log format — use 'dev' for development, 'combined' for production
 const LOG_FORMAT = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
@@ -127,6 +128,7 @@ class WebServer {
     app.use('/api/workflow', apiLimiter, authMiddleware, WorkflowWebRoutes);
     app.use('/api/analytics', apiLimiter, authMiddleware, AnalyticsWebRoutes);
     app.use('/api/activity', apiLimiter, authMiddleware, ActivityWebRoutes);
+    app.use('/api/telegram', apiLimiter, authMiddleware, TelegramRoutes);
 
     // User info endpoint (change password at auth routes)
     app.get('/api/user/profile', authMiddleware, async (req, res) => {
