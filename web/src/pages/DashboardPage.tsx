@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
-import Nav from '../components/Nav';
 
 interface DashboardStats {
   totalMessages?: number;
@@ -68,9 +67,7 @@ export default function DashboardPage() {
   const maxCount = Math.max(...volume.map((v) => v.count), 1);
 
   return (
-    <div className="flex">
-      <Nav />
-      <main className="flex-1 p-6 bg-gray-900 text-white min-h-screen overflow-auto">
+    <main className="flex-1 p-6 bg-gray-900 text-white min-h-screen overflow-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <button
@@ -147,6 +144,5 @@ export default function DashboardPage() {
           </>
         )}
       </main>
-    </div>
   );
 }

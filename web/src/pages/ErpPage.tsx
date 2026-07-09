@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import Nav from '../components/Nav';
 
 interface Task {
   id: string;
@@ -72,9 +71,7 @@ export default function ErpPage() {
   };
 
   return (
-    <div className="flex">
-      <Nav />
-      <main className="flex-1 p-6 bg-gray-900 text-white min-h-screen overflow-auto">
+    <main className="flex-1 p-6 bg-gray-900 text-white min-h-screen overflow-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">📋 ERP</h1>
         </div>
@@ -199,6 +196,5 @@ export default function ErpPage() {
           </>
         )}
       </main>
-    </div>
   );
 }
