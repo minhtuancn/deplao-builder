@@ -96,8 +96,9 @@ async function startFacebookListeners(): Promise<void> {
 
 async function startTelegramListener(): Promise<void> {
   try {
-    const { TelegramService } = await import('./services/telegram/TelegramService');
-    await TelegramService.initialize();
+    // Dynamic require to avoid TS error before TelegramService is created
+    const mod = require('./services/telegram/TelegramService');
+    await mod.TelegramService.initialize();
     Logger.log(`${TAG} Telegram listener started`);
   } catch (e) {
     Logger.warn(`${TAG} Telegram init failed: ${(e as Error).message}`);

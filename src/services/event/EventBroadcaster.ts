@@ -1342,6 +1342,21 @@ class EventBroadcaster {
             // WebServer not started - silent fail
         }
     }
+  /**
+   * Broadcast QR update for Zalo login (connect/scan/expire/decline/success)
+   * Emitted to all connected web clients on the 'login:qrUpdate' channel.
+   */
+  public static broadcastQRUpdate(tempId: string, qrDataUrl: string, status: string): void {
+    EventBroadcaster.broadcastToWeb('login:qrUpdate', { tempId, qrDataUrl, status }, tempId);
+  }
+
+  /**
+   * Broadcast that a listener (Zalo/Facebook) has died/unexpectedly stopped.
+   * Emitted to web UI on 'listener:dead' so the user can take action.
+   */
+  public static broadcastListenerDead(accountId: string, reason: string): void {
+    EventBroadcaster.broadcastToWeb('listener:dead', { accountId, reason, ts: Date.now() }, accountId);
+  }
 }
 
 export default EventBroadcaster;

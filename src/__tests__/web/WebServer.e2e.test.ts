@@ -329,7 +329,7 @@ describe('WebServer E2E', () => {
   describe('HTTP Server', () => {
     it('responds to health check on the running server', async () => {
       const res = await fetch(`${BASE}/api/health`);
-      const body = await res.json();
+      const body: any = await res.json();
       expect(res.status).toBe(200);
       expect(body.ok).toBe(true);
     });
