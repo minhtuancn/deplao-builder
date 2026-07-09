@@ -1,0 +1,123 @@
+# ─── Deplao Web SPA — CI ─────────────────────────────────────────────────
+# Builds the web SPA and runs backend route tests on every push/PR
+# ─────────────────────────────────────────────────────────────────────────
+
+name: Web CI
+
+on:
+  push:
+    branches:
+      - main
+      - custom
+      - 'custom/**'
+    paths:
+      - 'web/**'
+      - 'src/services/web/**'
+      - 'src/services/crm/CRMWebRoutes.ts'
+      - 'src/services/erp/ErpWebRoutes.ts'
+      - 'src/services/workflow/WorkflowWebRoutes.ts'
+      - 'src/services/analytics/AnalyticsWebRoutes.ts'
+      - 'src/__tests__/web/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/web-ci.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'src/services/web/**'
+      - 'src/__tests__/web/**'
+  workflow_dispatch:     # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════
+  # Build web SPA — TypeScript compile + Vite production build
+  # ═══════════════════════════════════════════════════════════════════════
+  build-web:
+    name: Build Web SPA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 📦 Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: 🏗️ Build web SPA
+        run: npm run build
+        working-directory: web
+
+      - name: 📤 Upload dist-web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-web
+          path: dist-web/
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Backend web route tests — Jest tests for Express routes
+  # ═══════════════════════════════════════════════════════════════════════
+  test-backend:
+    name: Backend Route Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: 🧪 Run web route tests
+        run: npx jest src/__tests__/web/WebServer.test.ts --no-cache --runInBand --verbose
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Optional: Lint check (TypeScript type-check only)
+  # ═══════════════════════════════════════════════════════════════════════
+  typecheck-web:
+    name: TypeScript Check (Web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 📦 Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: 🔍 TypeScript type check
+        run: npx tsc --noEmit
+        working-directory: web
