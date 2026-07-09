@@ -1,5 +1,5 @@
-import { BrowserWindow } from 'electron';
 import * as path from 'path';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import Logger from '../../utils/Logger';
 import DatabaseService from '../database/DatabaseService';
 import FileStorageService from '../file/FileStorageService';
@@ -15,7 +15,6 @@ export function registerGroupCacheInvalidator(fn: (zaloId: string, groupId: stri
  * Broadcast Zalo events từ main process → renderer process
  */
 class EventBroadcaster {
-    private static window: BrowserWindow | null = null;
     /** Cache previous groupSetting per group to detect what changed in update_setting events */
     private static previousGroupSettings = new Map<string, Record<string, number>>();
     /** Hooks đăng ký bởi WorkflowEngineService để nhận event trước renderer */
@@ -36,10 +35,6 @@ class EventBroadcaster {
             }
             this.previousGroupSettings.set(cacheKey, { ...settings });
         }
-    }
-
-    public static setWindow(win: BrowserWindow): void {
-        this.window = win;
     }
 
     /** Generic channel emit - dùng bởi CRMQueueService và các service khác */
@@ -123,10 +118,7 @@ class EventBroadcaster {
                 try { hook(data); } catch {}
             }
         }
-        if (this.window && !this.window.isDestroyed()) {
-            this.window.webContents.send(channel, data);
-        }
-        // Bridge to web clients
+        // Bridge to web clients via Socket.IO (no Electron renderer)
         EventBroadcaster.broadcastToWeb(channel, data, data?.zaloId);
     }
 
@@ -136,9 +128,8 @@ class EventBroadcaster {
      *   Boss relay → Employee handlePushedEvent → send → hook → relay → loop!
      */
     public static sendDirect(channel: string, data: any): void {
-        if (this.window && !this.window.isDestroyed()) {
-            this.window.webContents.send(channel, data);
-        }
+        // No Electron renderer — send directly to web clients
+        EventBroadcaster.broadcastToWeb(channel, data, data?.zaloId);
     }
 
     /**
