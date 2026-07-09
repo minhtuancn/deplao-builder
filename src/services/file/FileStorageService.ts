@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
-import { app } from 'electron';
+import { PlatformConfig } from '../../utils/PlatformConfig';
 import Logger from '../../utils/Logger';
 
 class FileStorageService {
@@ -22,7 +22,7 @@ class FileStorageService {
                 this.baseDir = wm.getActiveMediaPath();
             } catch {
                 // Fallback: legacy resolution
-                const userDataPath = app.getPath('userData');
+                const userDataPath = PlatformConfig.getDataDir();
                 let mediaRoot = userDataPath;
 
                 const configPath = path.join(userDataPath, 'deplao-config.json');
