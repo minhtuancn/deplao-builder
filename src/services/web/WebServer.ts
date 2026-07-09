@@ -124,7 +124,20 @@ class WebServer {
     app.use('/api/analytics', apiLimiter, authMiddleware, AnalyticsWebRoutes);
 
     // Serve built SPA (production) — dist-web/ is at project root
-    const distPath = path.join(__dirname, '../../dist-web');
+    // Try multiple resolutions: compiled (dist-electron/...) or source (src/...)
+    let distPath = path.join(__dirname, '../../dist-web');
+    if (!fs.existsSync(distPath)) {
+      distPath = path.join(__dirname, '../../../dist-web');
+    }
+    if (!fs.existsSync(distPath)) {
+      // Fallback: walk up to project root
+      let p = path.resolve(__dirname);
+      while (p !== path.dirname(p)) {
+        const candidate = path.join(p, 'dist-web');
+        if (fs.existsSync(candidate)) { distPath = candidate; break; }
+        p = path.dirname(p);
+      }
+    }
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
       app.get('*', (req, res, next) => {
