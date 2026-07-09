@@ -723,9 +723,12 @@ class HttpRelayService {
                 }
             }
 
-            // Use handler registry
-            const { ipcHandlerRegistry } = require('../../../electron/ipc/zaloIpc');
-            const handler = ipcHandlerRegistry?.get(channel);
+            // Use handler registry (web-only: Electron IPC handlers not available)
+            let handler: Function | undefined;
+            try {
+                const { ipcHandlerRegistry } = require('../../../electron/ipc/zaloIpc');
+                handler = ipcHandlerRegistry?.get(channel);
+            } catch { /* web-only — no Electron IPC handlers */ }
 
             // ── Special: sendVideo from library → do full 3-step upload chain ──
             if (channel === 'zalo:sendVideo' && params._libraryUuid) {

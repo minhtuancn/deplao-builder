@@ -145,7 +145,7 @@ class WebServer {
     });
 
     // Serve built SPA (production) — dist-web/ is at project root
-    // Try multiple resolutions: compiled (dist-electron/...) or source (src/...)
+    // Resolve relative to compiled output (dist/) or source (src/)
     let distPath = path.join(__dirname, '../../dist-web');
     if (!fs.existsSync(distPath)) {
       distPath = path.join(__dirname, '../../../dist-web');

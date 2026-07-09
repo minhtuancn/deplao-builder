@@ -347,13 +347,13 @@ export function resolveE2EEBinaryPath(): string {
     } catch { /* ignore readdir errors */ }
   }
 
-  // 3. Development: look for it in build/ relative to project root
-  // __dirname is in src/services/facebook (raw TS) or dist-electron/src/services/facebook (compiled)
-  // Bridge is now at src/bridge-e2ee/build/
+  // 3. Development / compiled: look for it in build/ relative to project root
+  // raw TS: src/services/facebook → ../../bridge-e2ee/build/
+  // compiled (tsc): dist/src/services/facebook → ../../../src/bridge-e2ee/build/
   const candidates = [
     // raw TS: src/services/facebook → ../../src/bridge-e2ee/build/
     path.join(__dirname, '..', '..', 'bridge-e2ee', 'build', binaryName),
-    // compiled: dist-electron/src/services/facebook → ../../../src/bridge-e2ee/build/
+    // compiled: dist/src/services/facebook → ../../../src/bridge-e2ee/build/
     path.join(__dirname, '..', '..', '..', '..', 'src', 'bridge-e2ee', 'build', binaryName),
     // fallback: old locations (pre-move)
     path.join(__dirname, '..', '..', '..', 'bridge-e2ee', 'build', binaryName),
