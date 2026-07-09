@@ -7,66 +7,198 @@ interface Workflow {
   name: string;
   description?: string;
   active: boolean;
+  createdAt?: string;
 }
 
 interface LogEntry {
   timestamp?: string;
   message?: string;
   event?: string;
+  level?: string;
+}
+
+interface Template {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export default function WorkflowPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    api.get('/workflow/list?zaloId=default').then((d) => setWorkflows(d.workflows || []));
-    api.get('/workflow/logs?zaloId=default&limit=10').then((d) => setLogs(d.logs || []));
-  }, []);
+  const ZALO_ID = 'default';
+
+  const fetchData = async () => {
+    const [w, l, t] = await Promise.all([
+      api.get(`/workflow/list?zaloId=${ZALO_ID}`),
+      api.get(`/workflow/logs?zaloId=${ZALO_ID}&limit=20`),
+      api.get(`/workflow/templates?zaloId=${ZALO_ID}`).catch(() => ({ templates: [] })),
+    ]);
+    setWorkflows(w.workflows || []);
+    setLogs(l.logs || []);
+    setTemplates(t.templates || []);
+  };
+
+  useEffect(() => { fetchData(); }, []);
 
   const toggle = async (id: string) => {
-    await api.post('/workflow/toggle', { zaloId: 'default', workflowId: id });
-    const d = await api.get('/workflow/list?zaloId=default');
-    setWorkflows(d.workflows || []);
+    await api.post('/workflow/toggle', { zaloId: ZALO_ID, workflowId: id });
+    await fetchData();
+  };
+
+  const runWorkflow = async (id: string) => {
+    await api.post('/workflow/run', { zaloId: ZALO_ID, workflowId: id });
+    await fetchData();
+  };
+
+  const deleteWorkflow = async (id: string) => {
+    if (!confirm('Xóa workflow này?')) return;
+    await api.del(`/workflow/${id}?zaloId=${ZALO_ID}`);
+    await fetchData();
+  };
+
+  const createWorkflow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setSaving(true);
+    try {
+      await api.post('/workflow/save', {
+        zaloId: ZALO_ID,
+        workflow: { name: newName.trim(), description: '', nodes: [], edges: [] },
+        templateId: selectedTemplate || undefined,
+      });
+      setNewName('');
+      setSelectedTemplate('');
+      setShowNewForm(false);
+      await fetchData();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="flex">
       <Nav />
-      <main className="flex-1 p-6 bg-gray-900 text-white min-h-screen">
-        <h1 className="text-2xl font-bold mb-4">Workflow</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-800 p-4 rounded">
-            <h2 className="font-semibold mb-2">Workflows</h2>
-            <ul className="space-y-2">
-              {workflows.map((w) => (
-                <li key={w.id} className="p-2 bg-gray-700 rounded flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{w.name}</p>
-                    <p className="text-xs text-gray-400">{w.description}</p>
+      <main className="flex-1 p-6 bg-gray-900 text-white min-h-screen overflow-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">⚡ Workflow</h1>
+          <button
+            onClick={() => { setShowNewForm(!showNewForm); }}
+            className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium transition"
+          >
+            {showNewForm ? '✕ Đóng' : '+ Tạo workflow'}
+          </button>
+        </div>
+
+        {/* Create form */}
+        {showNewForm && (
+          <form onSubmit={createWorkflow} className="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6 space-y-3">
+            <input
+              className="w-full p-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:border-blue-500 outline-none"
+              placeholder="Tên workflow..."
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              autoFocus
+              disabled={saving}
+            />
+            {templates.length > 0 && (
+              <select
+                className="w-full p-2 rounded-lg bg-gray-700 text-white border border-gray-600"
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+              >
+                <option value="">Không dùng template</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} — {t.description}</option>
+                ))}
+              </select>
+            )}
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-green-600 hover:bg-green-500 disabled:bg-gray-600 px-4 py-2 rounded-lg text-sm transition"
+            >
+              {saving ? '⏳ Đang tạo...' : 'Tạo workflow'}
+            </button>
+          </form>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Workflows */}
+          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div className="p-4 border-b border-gray-700 font-semibold">Workflows</div>
+            {workflows.length === 0 ? (
+              <p className="p-6 text-gray-500 text-center">Chưa có workflow nào</p>
+            ) : (
+              <div className="divide-y divide-gray-700">
+                {workflows.map((w) => (
+                  <div key={w.id} className="p-4 hover:bg-gray-700/50 transition">
+                    <div className="flex items-center justify-between mb-1">
+                      <div>
+                        <span className="font-medium">{w.name}</span>
+                        {w.description && <p className="text-xs text-gray-400 mt-0.5">{w.description}</p>}
+                      </div>
+                      <button
+                        onClick={() => toggle(w.id)}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                          w.active ? 'bg-green-700 text-green-200' : 'bg-gray-600 text-gray-300'
+                        }`}
+                      >
+                        {w.active ? 'BẬT' : 'TẮT'}
+                      </button>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => runWorkflow(w.id)}
+                        className="text-xs px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 transition"
+                      >
+                        ▶ Chạy
+                      </button>
+                      <button
+                        onClick={() => deleteWorkflow(w.id)}
+                        className="text-xs px-2 py-1 rounded bg-red-800 hover:bg-red-700 transition"
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                    {w.createdAt && (
+                      <p className="text-xs text-gray-500 mt-2">Tạo: {new Date(w.createdAt).toLocaleDateString('vi-VN')}</p>
+                    )}
                   </div>
-                  <button
-                    onClick={() => toggle(w.id)}
-                    className={`px-3 py-1 rounded text-sm ${
-                      w.active ? 'bg-green-600' : 'bg-gray-500'
-                    }`}
-                  >
-                    {w.active ? 'ON' : 'OFF'}
-                  </button>
-                </li>
-              ))}
-            </ul>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="bg-gray-800 p-4 rounded">
-            <h2 className="font-semibold mb-2">Recent Logs</h2>
-            <ul className="space-y-1 text-sm">
-              {logs.map((l, i) => (
-                <li key={i} className="p-1 border-b border-gray-700">
-                  <span className="text-gray-400">[{l.timestamp || ''}]</span>{' '}
-                  {l.message || l.event || ''}
-                </li>
-              ))}
-            </ul>
+
+          {/* Logs */}
+          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div className="p-4 border-b border-gray-700 font-semibold">📜 Nhật ký gần đây</div>
+            {logs.length === 0 ? (
+              <p className="p-6 text-gray-500 text-center">Chưa có nhật ký</p>
+            ) : (
+              <div className="divide-y divide-gray-700 max-h-96 overflow-y-auto">
+                {logs.map((l, i) => (
+                  <div key={i} className="p-3 text-sm hover:bg-gray-700/50 transition">
+                    <span className={`text-xs font-mono ${
+                      l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-yellow-400' : 'text-gray-500'
+                    }`}>
+                      [{l.timestamp ? new Date(l.timestamp).toLocaleTimeString('vi-VN') : ''}]
+                    </span>{' '}
+                    <span className={
+                      l.level === 'error' ? 'text-red-300' : l.level === 'warn' ? 'text-yellow-300' : ''
+                    }>
+                      {l.message || l.event || ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>
