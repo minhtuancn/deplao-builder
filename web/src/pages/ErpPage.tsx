@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { toast } from '../store/toastStore';
+import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Task {
   id: string;
@@ -24,6 +26,13 @@ export default function ErpPage() {
   const [noteContent, setNoteContent] = useState('');
   const [activeTab, setActiveTab] = useState<'tasks' | 'notes'>('tasks');
 
+  // Confirm dialog state
+  const [confirm, setConfirm] = useState<{ open: boolean; options: ConfirmDialogOptions; onConfirm: () => void }>({
+    open: false,
+    options: { title: '', message: '' },
+    onConfirm: () => {},
+  });
+
   const ZALO_ID = 'default';
 
   const fetchData = async () => {
@@ -40,34 +49,93 @@ export default function ErpPage() {
   const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.trim()) return;
-    await api.post('/erp/task', { zaloId: ZALO_ID, title: newTask.trim() });
-    setNewTask('');
-    await fetchData();
+    try {
+      await api.post('/erp/task', { zaloId: ZALO_ID, title: newTask.trim() });
+      setNewTask('');
+      toast.success('Thêm công việc thành công');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi thêm công việc');
+    }
   };
 
   const toggleTask = async (id: string, completed: boolean) => {
-    await api.put(`/erp/task/${id}`, { zaloId: ZALO_ID, completed: !completed });
-    await fetchData();
+    try {
+      await api.put(`/erp/task/${id}`, { zaloId: ZALO_ID, completed: !completed });
+      toast.success(completed ? 'Đã đánh dấu chưa hoàn thành' : 'Đã hoàn thành công việc');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi cập nhật');
+    }
   };
 
-  const deleteTask = async (id: string) => {
-    await api.del(`/erp/task/${id}?zaloId=${ZALO_ID}`);
-    await fetchData();
+  const doDeleteTask = async (id: string) => {
+    try {
+      await api.del(`/erp/task/${id}?zaloId=${ZALO_ID}`);
+      toast.success('Đã xóa công việc');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi xóa');
+    }
+  };
+
+  const promptDeleteTask = (id: string, title: string) => {
+    setConfirm({
+      open: true,
+      options: {
+        title: 'Xóa công việc',
+        message: `Bạn có chắc chắn muốn xóa công việc "${title}"?`,
+        confirmLabel: 'Xóa',
+        cancelLabel: 'Huỷ',
+        variant: 'danger',
+      },
+      onConfirm: () => {
+        setConfirm((c) => ({ ...c, open: false }));
+        doDeleteTask(id);
+      },
+    });
   };
 
   const addNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteTitle.trim()) return;
-    await api.post('/erp/note', { zaloId: ZALO_ID, title: noteTitle.trim(), content: noteContent.trim() });
-    setNoteTitle('');
-    setNoteContent('');
-    setShowNoteForm(false);
-    await fetchData();
+    try {
+      await api.post('/erp/note', { zaloId: ZALO_ID, title: noteTitle.trim(), content: noteContent.trim() });
+      setNoteTitle('');
+      setNoteContent('');
+      setShowNoteForm(false);
+      toast.success('Thêm ghi chú thành công');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi thêm ghi chú');
+    }
   };
 
-  const deleteNote = async (id: string) => {
-    await api.del(`/erp/note/${id}?zaloId=${ZALO_ID}`);
-    await fetchData();
+  const doDeleteNote = async (id: string) => {
+    try {
+      await api.del(`/erp/note/${id}?zaloId=${ZALO_ID}`);
+      toast.success('Đã xóa ghi chú');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi xóa');
+    }
+  };
+
+  const promptDeleteNote = (id: string, title: string) => {
+    setConfirm({
+      open: true,
+      options: {
+        title: 'Xóa ghi chú',
+        message: `Bạn có chắc chắn muốn xóa ghi chú "${title}"?`,
+        confirmLabel: 'Xóa',
+        cancelLabel: 'Huỷ',
+        variant: 'danger',
+      },
+      onConfirm: () => {
+        setConfirm((c) => ({ ...c, open: false }));
+        doDeleteNote(id);
+      },
+    });
   };
 
   return (
@@ -132,7 +200,7 @@ export default function ErpPage() {
                       {t.dueDate && <span className="text-xs text-gray-500 ml-2">📅 {new Date(t.dueDate).toLocaleDateString('vi-VN')}</span>}
                     </div>
                     <button
-                      onClick={() => deleteTask(t.id)}
+                      onClick={() => promptDeleteTask(t.id, t.title)}
                       className="text-red-400 hover:text-red-300 text-sm"
                     >
                       Xóa
@@ -183,7 +251,7 @@ export default function ErpPage() {
                   <div key={n.id} className="bg-gray-800 p-4 rounded-xl border border-gray-700">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-semibold">{n.title}</h3>
-                      <button onClick={() => deleteNote(n.id)} className="text-red-400 hover:text-red-300 text-xs">Xóa</button>
+                      <button onClick={() => promptDeleteNote(n.id, n.title)} className="text-red-400 hover:text-red-300 text-xs">Xóa</button>
                     </div>
                     <p className="text-sm text-gray-300 whitespace-pre-wrap">{n.content}</p>
                     {n.createdAt && (
@@ -195,6 +263,12 @@ export default function ErpPage() {
             </div>
           </>
         )}
+        <ConfirmDialog
+          open={confirm.open}
+          options={confirm.options}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm((c) => ({ ...c, open: false }))}
+        />
       </main>
   );
 }

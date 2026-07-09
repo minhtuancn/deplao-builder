@@ -7,6 +7,7 @@ import WorkflowPage from './pages/WorkflowPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
+import ToastContainer from './components/ToastContainer';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuthStore } from './store/authStore';
 
@@ -15,6 +16,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <ToastContainer />
       <Routes>
         {/* Public routes */}
         <Route

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { toast } from '../store/toastStore';
+import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Workflow {
   id: string;
@@ -31,6 +33,13 @@ export default function WorkflowPage() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Confirm dialog state
+  const [confirm, setConfirm] = useState<{ open: boolean; options: ConfirmDialogOptions; onConfirm: () => void }>({
+    open: false,
+    options: { title: '', message: '' },
+    onConfirm: () => {},
+  });
+
   const ZALO_ID = 'default';
 
   const fetchData = async () => {
@@ -47,19 +56,51 @@ export default function WorkflowPage() {
   useEffect(() => { fetchData(); }, []);
 
   const toggle = async (id: string) => {
-    await api.post('/workflow/toggle', { zaloId: ZALO_ID, workflowId: id });
-    await fetchData();
+    try {
+      const wf = workflows.find((w) => w.id === id);
+      await api.post('/workflow/toggle', { zaloId: ZALO_ID, workflowId: id });
+      toast.success(wf?.active ? 'Đã tắt workflow' : 'Đã bật workflow');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi chuyển trạng thái');
+    }
   };
 
   const runWorkflow = async (id: string) => {
-    await api.post('/workflow/run', { zaloId: ZALO_ID, workflowId: id });
-    await fetchData();
+    try {
+      await api.post('/workflow/run', { zaloId: ZALO_ID, workflowId: id });
+      toast.success('Đã chạy workflow');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi chạy workflow');
+    }
   };
 
-  const deleteWorkflow = async (id: string) => {
-    if (!confirm('Xóa workflow này?')) return;
-    await api.del(`/workflow/${id}?zaloId=${ZALO_ID}`);
-    await fetchData();
+  const doDeleteWorkflow = async (id: string) => {
+    try {
+      await api.del(`/workflow/${id}?zaloId=${ZALO_ID}`);
+      toast.success('Đã xóa workflow');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi xóa workflow');
+    }
+  };
+
+  const promptDelete = (id: string, name: string) => {
+    setConfirm({
+      open: true,
+      options: {
+        title: 'Xóa workflow',
+        message: `Bạn có chắc chắn muốn xóa workflow "${name}"?`,
+        confirmLabel: 'Xóa',
+        cancelLabel: 'Huỷ',
+        variant: 'danger',
+      },
+      onConfirm: () => {
+        setConfirm((c) => ({ ...c, open: false }));
+        doDeleteWorkflow(id);
+      },
+    });
   };
 
   const createWorkflow = async (e: React.FormEvent) => {
@@ -75,7 +116,10 @@ export default function WorkflowPage() {
       setNewName('');
       setSelectedTemplate('');
       setShowNewForm(false);
+      toast.success('Tạo workflow thành công');
       await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi tạo workflow');
     } finally {
       setSaving(false);
     }
@@ -158,7 +202,7 @@ export default function WorkflowPage() {
                         ▶ Chạy
                       </button>
                       <button
-                        onClick={() => deleteWorkflow(w.id)}
+                        onClick={() => promptDelete(w.id, w.name)}
                         className="text-xs px-2 py-1 rounded bg-red-800 hover:bg-red-700 transition"
                       >
                         Xóa
@@ -198,6 +242,12 @@ export default function WorkflowPage() {
             )}
           </div>
         </div>
+        <ConfirmDialog
+          open={confirm.open}
+          options={confirm.options}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm((c) => ({ ...c, open: false }))}
+        />
       </main>
   );
 }

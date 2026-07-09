@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { toast } from '../store/toastStore';
+import ConfirmDialog, { type ConfirmDialogOptions } from '../components/ConfirmDialog';
 
 interface Campaign {
   id: string;
@@ -21,6 +23,13 @@ export default function CrmPage() {
   const [formName, setFormName] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Confirm dialog state
+  const [confirm, setConfirm] = useState<{ open: boolean; options: ConfirmDialogOptions; onConfirm: () => void }>({
+    open: false,
+    options: { title: '', message: '' },
+    onConfirm: () => {},
+  });
 
   const ZALO_ID = 'default';
 
@@ -44,24 +53,52 @@ export default function CrmPage() {
       await api.post('/crm/campaign', { zaloId: ZALO_ID, name: formName.trim() });
       setFormName('');
       setShowForm(false);
+      toast.success('Tạo chiến dịch thành công');
       await fetchData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message || 'Lỗi tạo chiến dịch');
     } finally {
       setSaving(false);
     }
   };
 
   const toggleStatus = async (id: string, current: string) => {
-    const newStatus = current === 'active' ? 'paused' : 'active';
-    await api.put(`/crm/campaign/${id}`, { zaloId: ZALO_ID, status: newStatus });
-    await fetchData();
+    try {
+      const newStatus = current === 'active' ? 'paused' : 'active';
+      await api.put(`/crm/campaign/${id}`, { zaloId: ZALO_ID, status: newStatus });
+      toast.success(current === 'active' ? 'Đã tạm dừng chiến dịch' : 'Đã kích hoạt chiến dịch');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi cập nhật trạng thái');
+    }
   };
 
-  const deleteCampaign = async (id: string) => {
-    if (!confirm('Xóa chiến dịch này?')) return;
-    await api.del(`/crm/campaign/${id}?zaloId=${ZALO_ID}`);
-    await fetchData();
+  const doDeleteCampaign = async (id: string) => {
+    try {
+      await api.del(`/crm/campaign/${id}?zaloId=${ZALO_ID}`);
+      toast.success('Đã xóa chiến dịch');
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi xóa chiến dịch');
+    }
+  };
+
+  const promptDelete = (id: string, name: string) => {
+    setConfirm({
+      open: true,
+      options: {
+        title: 'Xóa chiến dịch',
+        message: `Bạn có chắc chắn muốn xóa chiến dịch "${name}"? Hành động này không thể hoàn tác.`,
+        confirmLabel: 'Xóa',
+        cancelLabel: 'Huỷ',
+        variant: 'danger',
+      },
+      onConfirm: () => {
+        setConfirm((c) => ({ ...c, open: false }));
+        doDeleteCampaign(id);
+      },
+    });
   };
 
   return (
@@ -154,7 +191,7 @@ export default function CrmPage() {
                         {c.status === 'active' ? 'Tạm dừng' : 'Kích hoạt'}
                       </button>
                       <button
-                        onClick={() => deleteCampaign(c.id)}
+                        onClick={() => promptDelete(c.id, c.name)}
                         className="text-sm px-3 py-1 rounded bg-red-800 hover:bg-red-700 transition"
                       >
                         Xóa
@@ -166,6 +203,12 @@ export default function CrmPage() {
             </table>
           )}
         </div>
+        <ConfirmDialog
+          open={confirm.open}
+          options={confirm.options}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm((c) => ({ ...c, open: false }))}
+        />
       </main>
   );
 }
