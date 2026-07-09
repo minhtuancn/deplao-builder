@@ -11,7 +11,8 @@
     "dev": "npm run build:electron && concurrently -n VITE,TSC,ELECTRON -c cyan,magenta,yellow \"vite\" \"tsc -p tsconfig.electron.json --watch --preserveWatchOutput\" \"wait-on http://localhost:27799 && cross-env NODE_ENV=development electron dist-electron/electron/main.js\"",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "vite build",
-    "production": "npm run build:bridge-e2ee && tsc -p tsconfig.electron.prod.json && node scripts/strip-console.js && npm run build:renderer && electron-builder --publish never"
+    "build:web": "cd web && npm ci --legacy-peer-deps && npm run build",
+    "production": "npm run build:bridge-e2ee && tsc -p tsconfig.electron.prod.json && node scripts/strip-console.js && npm run build:renderer && npm run build:web && electron-builder --publish never"
   },
   "author": "babyvibe <babyvibe@users.noreply.github.com>",
   "homepage": "https://deplaoapp.com",
@@ -115,6 +116,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "dist-web/**/*",
       "resources/**/*",
       "node_modules/ffmpeg-static/**/*",
       "node_modules/cloudflared/**/*",

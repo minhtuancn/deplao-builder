@@ -23,6 +23,25 @@ WorkflowWebRoutes.get('/list', async (_req, res) => {
   }
 });
 
+// Static routes BEFORE :id to avoid param catch-all
+WorkflowWebRoutes.get('/logs', async (_req, res) => {
+  try {
+    const wfs = WorkflowEngineService.getInstance().getWorkflows();
+    const logs: any[] = [];
+    for (const wf of wfs) {
+      logs.push({
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: `Workflow "${wf.name}" is ${wf.enabled ? 'active' : 'disabled'}`,
+        event: '',
+      });
+    }
+    res.json({ success: true, logs });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 WorkflowWebRoutes.get('/:id', async (req, res) => {
   try {
     const wfs = WorkflowEngineService.getInstance().getWorkflows();
@@ -109,25 +128,6 @@ WorkflowWebRoutes.delete('/:id', async (req, res) => {
     if (idx < 0) return res.status(404).json({ success: false, error: 'Not found' });
     wfs.splice(idx, 1);
     res.json({ success: true });
-  } catch (e: any) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-WorkflowWebRoutes.get('/logs', async (_req, res) => {
-  try {
-    const wfs = WorkflowEngineService.getInstance().getWorkflows();
-    const logs: any[] = [];
-    // Collect basic workflow state as simple logs
-    for (const wf of wfs) {
-      logs.push({
-        timestamp: new Date().toISOString(),
-        level: 'info',
-        message: `Workflow "${wf.name}" is ${wf.enabled ? 'active' : 'disabled'}`,
-        event: '',
-      });
-    }
-    res.json({ success: true, logs });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }
