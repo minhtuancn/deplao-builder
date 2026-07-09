@@ -14,6 +14,18 @@ import { handleMediaRequest as handleMediaFileServe } from './handlers/MediaHand
 import { libraryHandlers } from './handlers/LibraryHandler';
 import FileStorageService from '../file/FileStorageService';
 
+// Lazy-loaded IPC handler registry (Electron-only; null in web mode)
+let _ipcHandlerRegistry: any = null;
+let _ipcRegistryLoaded = false;
+function getIpcHandlerRegistry(): any {
+  if (!_ipcRegistryLoaded) {
+    _ipcRegistryLoaded = true;
+    try { _ipcHandlerRegistry = require('../../../electron/ipc/zaloIpc').ipcHandlerRegistry; }
+    catch { /* web-only — no Electron IPC */ }
+  }
+  return _ipcHandlerRegistry;
+}
+
 interface RegisteredEmployee {
     employee_id: string;
     display_name: string;
@@ -726,8 +738,7 @@ class HttpRelayService {
             // Use handler registry (web-only: Electron IPC handlers not available)
             let handler: Function | undefined;
             try {
-                const { ipcHandlerRegistry } = require('../../../electron/ipc/zaloIpc');
-                handler = ipcHandlerRegistry?.get(channel);
+                handler = getIpcHandlerRegistry()?.get(channel);
             } catch { /* web-only — no Electron IPC handlers */ }
 
             // ── Special: sendVideo from library → do full 3-step upload chain ──
@@ -790,7 +801,7 @@ class HttpRelayService {
                     } catch { thumbPath = ''; }
 
                     // Step 2: Upload video thumb to Zalo
-                    const uploadThumbIpc = ipcHandlerRegistry?.get('zalo:uploadVideoThumb');
+                    const uploadThumbIpc = getIpcHandlerRegistry()?.get('zalo:uploadVideoThumb');
                     let thumbUrl = '';
                     if (uploadThumbIpc && thumbPath && fs.existsSync(thumbPath)) {
                         try {
@@ -806,7 +817,7 @@ class HttpRelayService {
                     }
 
                     // Step 3: Upload video file to Zalo
-                    const uploadVideoIpc = ipcHandlerRegistry?.get('zalo:uploadVideoFile');
+                    const uploadVideoIpc = getIpcHandlerRegistry()?.get('zalo:uploadVideoFile');
                     let videoUrl = '';
                     if (uploadVideoIpc) {
                         try {
@@ -839,7 +850,7 @@ class HttpRelayService {
                     delete params._libraryUuid;
                     delete params.filePath;
 
-                    const sendVideoHandler = ipcHandlerRegistry?.get('zalo:sendVideo');
+                    const sendVideoHandler = getIpcHandlerRegistry()?.get('zalo:sendVideo');
                     if (!sendVideoHandler) {
                         return { success: false, error: 'sendVideo handler not found' };
                     }

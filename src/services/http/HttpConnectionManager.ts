@@ -28,7 +28,7 @@ class HttpConnectionManager {
     private static instance: HttpConnectionManager;
     private clients: Map<string, WorkspaceClient> = new Map();
     private snapshots: Map<string, WorkspaceSnapshot> = new Map();
-    private mainWindow: BrowserWindow | null = null;
+    private mainWindow: any | null = null;
     private connecting: Set<string> = new Set();
     private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -39,7 +39,7 @@ class HttpConnectionManager {
         return HttpConnectionManager.instance;
     }
 
-    public setMainWindow(win: BrowserWindow): void {
+    public setMainWindow(win: any): void {
         this.mainWindow = win;
     }
 

@@ -39,6 +39,13 @@ class PostgresPool {
     const res = await this.pool.query(text, params);
     return res.rows as T[];
   }
+
+  public async close(): Promise<void> {
+    if (this.pool) {
+      await this.pool.end();
+      this.pool = null;
+    }
+  }
 }
 
 export default PostgresPool;
